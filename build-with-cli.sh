@@ -12,11 +12,9 @@ set -e
 
 BSP_MCCI=$HOME/.arduino15/packages/mcci
 BSP_CORE=$BSP_MCCI/hardware/stm32/
-if [[ ! -d build ]]; then
-    mkdir build
-fi
-OUTPUT=$(realpath build)
 LOCAL_BSP_CORE="$(realpath extra/Arduino_Core_STM32)"
+OUTPUT_ROOT="$(realpath build)"
+OUTPUT="${OUTPUT_ROOT}/ide"
 readonly KEYFILE_DEFAULT=keys/project.pem
 
 function _help {
@@ -46,16 +44,18 @@ OPTKEYFILE="${KEYFILE_DEFAULT}"
 for opt in "$@"; do
     case "$opt" in
     "--clean" )
-        rm -rf "$OUTPUT"
+        rm -rf "$OUTPUT_ROOT"
         ;;
     "--verbose" )
-        OPTVERBOSE=1
-        ARDUINO_CLI_FLAGS="${ARDUINO_CLI_FLAGS}${ARDUINO_CLI_FLAGS+ }-v"
+        OPTVERBOSE=$((OPTVERBOSE + 1))
+        if [[ $OPTVERBOSE -gt 1 ]]; then
+            ARDUINO_CLI_FLAGS="${ARDUINO_CLI_FLAGS}${ARDUINO_CLI_FLAGS+ }-v"
+        fi
         ;;
     "--test" )
         OPTTESTSIGN=1
         ;;
-    "--key=*" )
+    "--key="* )
         OPTKEYFILE="${opt#--key=}"
         ;;
     "--help" )
@@ -68,6 +68,12 @@ for opt in "$@"; do
         ;;
     esac
 done
+
+if [[ ! -d "${OUTPUT}" ]]; then
+    # the IDE hammers the specified directory; and we need other things here...
+    # so make it a subdir of build.
+    mkdir -p "${OUTPUT}"
+fi
 
 function _verbose {
     if [[ $OPTVERBOSE -ne 0 ]]; then
@@ -133,8 +139,13 @@ if [[ $OPTTESTSIGN -eq 0 ]]; then
         exit 1
     fi
     PRIVATE_KEY_LOCKED="$(realpath ${OPTKEYFILE})"
-    PRIVATE_KEY_UNLOCKED="${PRIVATE_KEY_LOCKED/%.pem/.tmp.pem}"
-    chmod 700 "$(dirname "$PRIVATE_KEY_LOCKED")"
+    PRIVATE_KEY_UNLOCKED_DIR="${OUTPUT}/../key.d"
+    if [[ ! -d "${PRIVATE_KEY_UNLOCKED_DIR}" ]]; then
+        _verbose make key directory "${PRIVATE_KEY_UNLOCKED_DIR}"
+        mkdir "${PRIVATE_KEY_UNLOCKED_DIR}"
+    fi
+    PRIVATE_KEY_UNLOCKED="$(realpath "${PRIVATE_KEY_UNLOCKED_DIR}"/"$(basename "${PRIVATE_KEY_LOCKED/%.pem/.tmp.pem}")")"
+    chmod 700 "${PRIVATE_KEY_UNLOCKED_DIR}"
     _verbose "Unlocking private key:"
     rm -f "${PRIVATE_KEY_UNLOCKED}"                     # remove old
     touch "${PRIVATE_KEY_UNLOCKED}"                     # create new
@@ -184,7 +195,11 @@ arduino-cli compile $ARDUINO_CLI_FLAGS \
 _verbose "Building mccibootloader_image"
 make -C extra/bootloader/tools/mccibootloader_image clean all
 _verbose "Building and signing bootloader"
-CROSS_COMPILE="${BSP_CROSS_COMPILE}" make -C extra/bootloader clean all MCCI_BOOTLOADER_KEYFILE="$KEYFILE" MCCIBOOTLOADER_IMAGE_FLAGS=-v
+_FLAGS=
+if [[ $OPTVERBOSE -ne 0 ]]; then
+    _FLAGS="MCCIBOOTLOADER_IMAGE_FLAGS=-v"
+fi
+CROSS_COMPILE="${BSP_CROSS_COMPILE}" make -C extra/bootloader clean all MCCI_BOOTLOADER_KEYFILE="$KEYFILE" ${_FLAGS}
 
 # copy bootloader images to output dir
 _verbose "Save bootloader"
