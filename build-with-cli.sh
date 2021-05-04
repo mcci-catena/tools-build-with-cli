@@ -106,8 +106,13 @@ function _cleanup {
     rm -f "$LOCAL_BSP_CORE"/platform.local.txt
 }
 
+function _errcleanup {
+    _verbose "Build error: remove output files"
+    rm -f "$OUTPUT"/*.elf "$OUTPUT"/*.bin "$OUTPUT"/*.hex "$OUTPUT"/*.dfu
+}
+
 trap '_cleanup' EXIT
-trap 'rm -f "$OUTPUT"/*.elf "$OUTPUT"/*.bin "$OUTPUT"/*.hex "$OUTPUT"/*.dfu' ERR
+trap '_errcleanup' ERR
 
 # set up BSP
 OLD_BSP_CORE="$(echo "$BSP_CORE"/*)"
@@ -209,6 +214,11 @@ cp -p extra/bootloader/build/arm-none-eabi/release/McciBootloader_46xx.* "$OUTPU
 _verbose "Combine bootloader and app"
 # all lines but the last, then append the main app
 head -n-1 "$OUTPUT"/McciBootloader_46xx.hex | cat - "$OUTPUT"/Catena4430_Sensor.ino.hex > "$OUTPUT"/Catena4430_Sensor-bootloader.hex
+
+# make a packed DFU variant
+_verbose "Make a packed DFU variant"
+pip3 install IntelHex
+python3 extra/dfu-util/dfuse-pack.py -i "$OUTPUT"/McciBootloader_46xx.hex -i "$OUTPUT"/Catena4430_Sensor.ino.hex -D 0x040e:0x00a1 "$OUTPUT"/Catena4430_Sensor-bootloader.dfu
 
 # all done
 _verbose "done"
