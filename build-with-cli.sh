@@ -10,16 +10,37 @@
 # exit if any errors encountered
 set -e
 
+#---- project settings -----
+readonly KEYFILE_DEFAULT=keys/project.pem
+
+readonly ARDUINO_FQBN="mcci:stm32:mcci_catena_4610"
+
+ARDUINO_OPTIONS="$(echo '
+                    upload_method=STLink
+                    xserial=generic
+                    sysclk=msi2097k
+                    boot=trusted
+                    opt=osstd
+                    lorawan_region=us915
+                    lorawan_network=ttn
+                    lorawan_subband=sb1
+                    ' | xargs echo)"
+readonly ARDUINO_OPTIONS
+
+readonly ARDUINO_SOURCE=libraries/mcci-catena-4430/examples/Catena4430_Sensor/Catena4430_Sensor.ino
+
+readonly BOOTLOADER_NAME=McciBootloader_46xx
+
+#---- common code ----
 BSP_MCCI=$HOME/.arduino15/packages/mcci
 BSP_CORE=$BSP_MCCI/hardware/stm32/
 LOCAL_BSP_CORE="$(realpath extra/Arduino_Core_STM32)"
 OUTPUT_ROOT="$(realpath build)"
 OUTPUT="${OUTPUT_ROOT}/ide"
-readonly KEYFILE_DEFAULT=keys/project.pem
 
 function _help {
     less <<.
-Build this directory using the arduino-cli tool.
+Build ${ARDUINO_SOURCE} using the arduino-cli tool.
 
 Options:
     --clean does a clean prior to building.
@@ -38,6 +59,8 @@ Options:
 
 typeset -i OPTTESTSIGN=0
 typeset -i OPTVERBOSE=0
+typeset -i OPTCLEAN=0
+
 OPTKEYFILE="${KEYFILE_DEFAULT}"
 
 # make sure everything is clean
@@ -45,6 +68,7 @@ for opt in "$@"; do
     case "$opt" in
     "--clean" )
         rm -rf "$OUTPUT_ROOT"
+        OPTCLEAN=1
         ;;
     "--verbose" )
         OPTVERBOSE=$((OPTVERBOSE + 1))
@@ -174,51 +198,51 @@ fi
 # do a build
 _verbose "Building sketch"
 
-ARDUINO_OPTIONS="$(echo '
-                    upload_method=STLink
-                    xserial=generic
-                    sysclk=msi2097k
-                    opt=osstd
-                    lorawan_region=us915
-                    lorawan_network=ttn
-                    lorawan_subband=sb1
-                    ' | xargs echo)"
-
 _verbose arduino-cli compile $ARDUINO_CLI_FLAGS \
-    -b mcci:stm32:mcci_catena_4610:"${ARDUINO_OPTIONS//[[:space:]]/,}" \
+    -b "${ARDUINO_FQBN}":"${ARDUINO_OPTIONS//[[:space:]]/,}" \
     --build-path "$OUTPUT" \
     --libraries libraries \
-    libraries/mcci-catena-4430/examples/Catena4430_Sensor/Catena4430_Sensor.ino
+    "${ARDUINO_SOURCE}"
 
 arduino-cli compile $ARDUINO_CLI_FLAGS \
-    -b mcci:stm32:mcci_catena_4610:"${ARDUINO_OPTIONS//[[:space:]]/,}" \
+    -b "${ARDUINO_FQBN}":"${ARDUINO_OPTIONS//[[:space:]]/,}" \
     --build-path "$OUTPUT" \
     --libraries libraries \
-    libraries/mcci-catena-4430/examples/Catena4430_Sensor/Catena4430_Sensor.ino
+    "${ARDUINO_SOURCE}"
 
 # build & sign the bootloader
 _verbose "Building mccibootloader_image"
-make -C extra/bootloader/tools/mccibootloader_image clean all
-_verbose "Building and signing bootloader"
-_FLAGS=
-if [[ $OPTVERBOSE -ne 0 ]]; then
-    _FLAGS="MCCIBOOTLOADER_IMAGE_FLAGS=-v"
+
+if [[ $OPTCLEAN -ne 0 ]]; then
+    make -C extra/bootloader/tools/mccibootloader_image clean
 fi
-CROSS_COMPILE="${BSP_CROSS_COMPILE}" make -C extra/bootloader clean all MCCI_BOOTLOADER_KEYFILE="$KEYFILE" ${_FLAGS}
+make -C extra/bootloader/tools/mccibootloader_image all
+
+_verbose "Building and signing bootloader"
+MCCIBOOTLOADER_IMAGE_FLAGS_ARG=
+if [[ $OPTVERBOSE -ne 0 ]]; then
+    MCCIBOOTLOADER_IMAGE_FLAGS_ARG="MCCIBOOTLOADER_IMAGE_FLAGS=-v"
+fi
+if [[ $OPTCLEAN -ne 0 ]]; then
+    CROSS_COMPILE="${BSP_CROSS_COMPILE}" make -C extra/bootloader clean MCCI_BOOTLOADER_KEYFILE="$KEYFILE" ${MCCIBOOTLOADER_IMAGE_FLAGS_ARG}
+fi
+CROSS_COMPILE="${BSP_CROSS_COMPILE}" make -C extra/bootloader all MCCI_BOOTLOADER_KEYFILE="$KEYFILE" ${MCCIBOOTLOADER_IMAGE_FLAGS_ARG}
 
 # copy bootloader images to output dir
 _verbose "Save bootloader"
-cp -p extra/bootloader/build/arm-none-eabi/release/McciBootloader_46xx.* "$OUTPUT"
+cp -p extra/bootloader/build/arm-none-eabi/release/${BOOTLOADER_NAME}.* "$OUTPUT"
 
 # combine hex images to simplify download
 _verbose "Combine bootloader and app"
+
 # all lines but the last, then append the main app
-head -n-1 "$OUTPUT"/McciBootloader_46xx.hex | cat - "$OUTPUT"/Catena4430_Sensor.ino.hex > "$OUTPUT"/Catena4430_Sensor-bootloader.hex
+ARDUINO_SOURCE_BASE="$(basename ${ARDUINO_SOURCE} .ino)"
+head -n-1 "$OUTPUT"/${BOOTLOADER_NAME}.hex | cat - "$OUTPUT"/"${ARDUINO_SOURCE_BASE}".ino.hex > "$OUTPUT"/"${ARDUINO_SOURCE_BASE}"-bootloader.hex
 
 # make a packed DFU variant
 _verbose "Make a packed DFU variant"
 pip3 install IntelHex
-python3 extra/dfu-util/dfuse-pack.py -i "$OUTPUT"/McciBootloader_46xx.hex -i "$OUTPUT"/Catena4430_Sensor.ino.hex -D 0x040e:0x00a1 "$OUTPUT"/Catena4430_Sensor-bootloader.dfu
+python3 extra/dfu-util/dfuse-pack.py -i "$OUTPUT"/${BOOTLOADER_NAME}.hex -i "$OUTPUT"/"${ARDUINO_SOURCE_BASE}".ino.hex -D 0x040e:0x00a1 "$OUTPUT"/"${ARDUINO_SOURCE_BASE}"-bootloader.dfu
 
 # all done
 _verbose "done"
