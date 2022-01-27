@@ -1,5 +1,24 @@
 #!/bin/bash
 
+##############################################################################
+#
+# Module: build-with-cli.sh
+#
+# Function:
+#	This script must be sourced; it sets variables used by other
+#	scripts in this directory.
+#
+# Usage:
+#	build-with-cli.sh --help
+#
+# Copyright and License:
+#	See accompanying LICENSE.md file
+#
+# Author:
+#	Terry Moore, MCCI	February 2021
+#
+##############################################################################
+
 # install arduino-cli from github using:
 #  curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
 
@@ -10,37 +29,74 @@
 # exit if any errors encountered
 set -e
 
+INVOKEDIR=$(realpath .)
+readonly INVOKEDIR
+
+SCRIPTNAME=$(basename "$0")
+readonly SCRIPTNAME
+
+PDIR=$(realpath "$(dirname "$0")")
+readonly PDIR
+
+typeset -i OPTDEBUG=0
+typeset -i OPTVERBOSE=0
+
 #---- project settings -----
-readonly KEYFILE_DEFAULT=keys/project.pem
+readonly OPTKEYFILE_DEFAULT="$INVOKEDIR/keys/project.pem"
+readonly OPTREGION_DEFAULT=us915
+readonly OPTNETWORK_DEFAULT=ttn
+readonly OPTSUBBAND_DEFAULT=default
 
 readonly ARDUINO_FQBN="mcci:stm32:mcci_catena_4610"
-
-ARDUINO_OPTIONS="$(echo '
-                    upload_method=STLink
-                    xserial=generic
-                    sysclk=msi2097k
-                    boot=trusted
-                    opt=osstd
-                    lorawan_region=us915
-                    lorawan_network=ttn
-                    lorawan_subband=sb1
-                    ' | xargs echo)"
-readonly ARDUINO_OPTIONS
-
 readonly ARDUINO_SOURCE=libraries/mcci-catena-4430/examples/Catena4430_Sensor/Catena4430_Sensor.ino
-
 readonly BOOTLOADER_NAME=McciBootloader_46xx
 
-#---- common code ----
-BSP_MCCI=$HOME/.arduino15/packages/mcci
-BSP_CORE=$BSP_MCCI/hardware/stm32/
-LOCAL_BSP_CORE="$(realpath extra/Arduino_Core_STM32)"
-OUTPUT_ROOT="$(realpath build)"
-OUTPUT="${OUTPUT_ROOT}/ide"
+##############################################################################
+# verbose output
+##############################################################################
+
+function _verbose {
+	if [ "$OPTVERBOSE" -ne 0 ]; then
+		echo "$PNAME:" "$@" 1>&2
+	fi
+}
+
+##############################################################################
+# debug output
+##############################################################################
+
+function _debug {
+	if [ "$OPTDEBUG" -ne 0 ]; then
+		echo "$@" 1>&2
+	fi
+}
+
+##############################################################################
+# error output
+##############################################################################
+
+#### _error: define a function that will echo an error message to STDERR.
+#### using "$@" ensures proper handling of quoting.
+function _error {
+	echo "$@" 1>&2
+}
+
+#### _fatal: print an error message and then exit the script.
+function _fatal {
+	_error "$@" ; exit 1
+}
+
+##############################################################################
+# help
+##############################################################################
 
 function _help {
     less <<.
-Build ${ARDUINO_SOURCE} using the arduino-cli tool.
+${PNAME} calls ${SCRIPTNAME} in order to build the Model 4811
+firmware $(basename ${ARDUINO_SOURCE}) using the arduino-cli tool.
+
+All the work is in the script ${SCRIPTNAME} is invoked from a
+top-level collection, not directly.
 
 Options:
     --clean does a clean prior to building.
@@ -50,18 +106,48 @@ Options:
     --test makes this a test-signing build (no use of private key)
 
     --key={file} gives the path to the public/private key files.
-        The default is ${KEYFILE_DEFAULT}. The public file is
+        The default is ${OPTKEYFILE_DEFAULT}. The public file is
         found by changing "*.pem" to "*.pub.pem".
+
+    --region={region} sets the region for the build; this must
+        be a recognized region. The default is ${OPTREGION_DEFAULT}.
+
+    --network={netid} sets the target network for the build. The
+        default is ${OPTNETWORK_DEFAULT}.
+
+    --subband={subband} sets the target subband. This should be
+        'default', or a zero-origin number. The default is ${OPTSUBBAND_DEFAULT}.
+
+    --debug turns on more debug output.
 
     --help prints this message.
 .
 }
 
+##############################################################################
+# extract version
+##############################################################################
+
+# $1 is the name of the script
+# result is version as either x.y.z-N or x.y.z (if pre-release tag is -0)
+function _getversion {
+    sed -n -e '/^constexpr std::uint32_t kAppVersion /s/^.*makeVersion[ \t]*([ \t]*\([0-9]*\)[ \t]*,[ \t]*\([0-9]*\)[ \t]*,[ \t]*\([0-9]*\)[ \t]*,[ \t]*\([0-9]*\)[ \t]*).*/\1.\2.\3_pre\4/p' \
+           -e '/^constexpr std::uint32_t kAppVersion /s/^.*makeVersion[ \t]*([ \t]*\([0-9]*\)[ \t]*,[ \t]*\([0-9]*\)[ \t]*,[ \t]*\([0-9]*\)[ \t]*).*/\1.\2.\3/p' "$1" |
+        sed -e 's/_pre0$//'
+}
+
+##############################################################################
+# the script
+##############################################################################
+
 typeset -i OPTTESTSIGN=0
-typeset -i OPTVERBOSE=0
+#typeset -i OPTVERBOSE=0    -- above
 typeset -i OPTCLEAN=0
 
-OPTKEYFILE="${KEYFILE_DEFAULT}"
+OPTKEYFILE="${OPTKEYFILE_DEFAULT}"
+OPTREGION="${OPTREGION_DEFAULT}"
+OPTNETWORK="${OPTNETWORK_DEFAULT}"
+OPTSUBBAND="${OPTSUBBAND_DEFAULT}"
 
 # make sure everything is clean
 for opt in "$@"; do
@@ -80,11 +166,24 @@ for opt in "$@"; do
         OPTTESTSIGN=1
         ;;
     "--key="* )
-        OPTKEYFILE="${opt#--key=}"
+        OPTKEYFILE=$(realpath "${opt#--key=}")
+        OPTTESTSIGN=0
         ;;
     "--help" )
         _help
         exit 0
+        ;;
+    "--network="* )
+        OPTNETWORK="${opt#--network=}"
+        ;;
+    "--region="* )
+        OPTREGION="${opt#--region=}"
+        ;;
+    "--subband="* )
+        OPTSUBBAND="${opt#--subband=}"
+        ;;
+    "--debug" )
+        OPTDEBUG=1
         ;;
     *)
         echo "not recognized: $opt -- use '--help' for help."
@@ -93,17 +192,76 @@ for opt in "$@"; do
     esac
 done
 
+#--- change to directory containing script
+cd "$PDIR"
+
+[[ -z "$OPTREGION" ]] && _error "region must not be empty"
+[[ -z "$OPTNETWORK" ]] && _error "network must not be empty"
+[[ -z "$OPTSUBBAND" ]] && _error "subband must not be empty"
+
+##############################################################################
+# Compute the arduino platform options to be used.
+##############################################################################
+
+ARDUINO_OPTIONS="$(echo "
+                    upload_method=STLink
+                    xserial=usb
+                    sysclk=pll32m
+                    boot=trusted
+                    opt=osstd
+                    lorawan_region=${OPTREGION}
+                    lorawan_network=${OPTNETWORK}
+                    lorawan_subband=${OPTSUBBAND}
+                    " | xargs echo)"
+readonly ARDUINO_OPTIONS
+_debug "ARDUINO_OPTIONS: ${ARDUINO_OPTIONS}"
+
+##############################################################################
+# fetch sketch version to variable
+##############################################################################
+
+SKETCHVERSION=$(_getversion "$ARDUINO_SOURCE")
+readonly SKETCHVERSION
+[[ -z "$SKETCHVERSION" ]] && _fatal "Version not found in $ARDUINO_SOURCE"
+
+_verbose "Building sketch: version $SKETCHVERSION"
+
+##############################################################################
+# create output signature
+##############################################################################
+
+if [[ $OPTTESTSIGN -eq 0 ]]; then
+    BUILDKEYSIG="$(basename "${OPTKEYFILE}" .pem | tr ' \t-' _)"
+else
+    BUILDKEYSIG=mcci_test
+fi
+
+##############################################################################
+# Deal wtih BSP and output paths
+##############################################################################
+
+if [[ ! -d "$INVOKEDIR"/build ]]; then
+    _verbose "No build dir in $INVOKEDIR: create it"
+    mkdir "$INVOKEDIR"/build
+fi
+
+BSP_MCCI=$HOME/.arduino15/packages/mcci
+BSP_CORE=$BSP_MCCI/hardware/stm32/
+LOCAL_BSP_CORE="$(realpath extra/Arduino_Core_STM32)"
+OUTPUT_SIG="v${SKETCHVERSION}-${OPTNETWORK}-${OPTREGION}-${OPTSUBBAND}-${BUILDKEYSIG}"
+OUTPUT_ROOT="$(realpath "$INVOKEDIR/build/${OUTPUT_SIG}")"
+OUTPUT="${OUTPUT_ROOT}/ide"
+OUTPUT_BOOTLOADER="${OUTPUT_ROOT}/boot"
+
+# --- post checks
 if [[ ! -d "${OUTPUT}" ]]; then
     # the IDE hammers the specified directory; and we need other things here...
     # so make it a subdir of build.
     mkdir -p "${OUTPUT}"
 fi
-
-function _verbose {
-    if [[ $OPTVERBOSE -ne 0 ]]; then
-        echo "$@"
-    fi
-}
+if [[ ! -d "${OUTPUT_BOOTLOADER}" ]]; then
+    mkdir -p "${OUTPUT_BOOTLOADER}"
+fi
 
 if [[ -d ~/Arduino/libraries ]]; then
     printf "%s\n" "Error: you have a ~/Arduino/libraries directory." \
@@ -123,7 +281,7 @@ function _cleanup {
         _verbose "remove symbolic link"
         rm "$BSP_CORE"/2.8.0
     fi
-    if [[ ! -z "$SAVE_BSP_CORE" ]] && [[ -d "$SAVE_BSP_CORE" ]]; then
+    if [[ -n "$SAVE_BSP_CORE" ]] && [[ -d "$SAVE_BSP_CORE" ]]; then
         _verbose "restore BSP"
         mv "$SAVE_BSP_CORE" "$BSP_CORE"/"$SAVE_BSP_VER"
     fi
@@ -167,7 +325,7 @@ if [[ $OPTTESTSIGN -eq 0 ]]; then
         echo "Can't find project key file: ${OPTKEYFILE} -- did you do git clone --recursive?"
         exit 1
     fi
-    PRIVATE_KEY_LOCKED="$(realpath ${OPTKEYFILE})"
+    PRIVATE_KEY_LOCKED="$(realpath "${OPTKEYFILE}")"
     PRIVATE_KEY_UNLOCKED_DIR="${OUTPUT}/../key.d"
     if [[ ! -d "${PRIVATE_KEY_UNLOCKED_DIR}" ]]; then
         _verbose make key directory "${PRIVATE_KEY_UNLOCKED_DIR}"
@@ -183,9 +341,9 @@ if [[ $OPTTESTSIGN -eq 0 ]]; then
     ssh-keygen -p -N '' -f "$PRIVATE_KEY_UNLOCKED"      # decrypt key (ssh-keygen is careful with permissions)
 
     # set up Arduino IDE to use the key
-    printf "%s\n" mccibootloader_keys.path="$(dirname $PRIVATE_KEY_UNLOCKED)" mccibootloader_keys.test="$(basename $PRIVATE_KEY_UNLOCKED)" > "$LOCAL_BSP_CORE"/platform.local.txt
+    printf "%s\n" mccibootloader_keys.path="$(dirname "$PRIVATE_KEY_UNLOCKED")" mccibootloader_keys.test="$(basename "$PRIVATE_KEY_UNLOCKED")" > "$LOCAL_BSP_CORE"/platform.local.txt
 
-    # set input key path for signing bootloader 
+    # set input key path for signing bootloader
     KEYFILE="${PRIVATE_KEY_UNLOCKED}"
 else
     _verbose "** using test key **"
@@ -195,9 +353,11 @@ else
     KEYFILE="$(realpath extra/bootloader/tools/mccibootloader_image/test/mcci-test.pem)"
 fi
 
-# do a build
-_verbose "Building sketch"
+# remove previous build artifacts
+_verbose "Remove previous build artifacts"
+rm -f "$OUTPUT"/*.hex "$OUTPUT"/*.bin "$OUTPUT"/*.dfu "$OUTPUT"/*.elf
 
+# do a build
 _verbose arduino-cli compile $ARDUINO_CLI_FLAGS \
     -b "${ARDUINO_FQBN}":"${ARDUINO_OPTIONS//[[:space:]]/,}" \
     --build-path "$OUTPUT" \
@@ -224,13 +384,13 @@ if [[ $OPTVERBOSE -ne 0 ]]; then
     MCCIBOOTLOADER_IMAGE_FLAGS_ARG="MCCIBOOTLOADER_IMAGE_FLAGS=-v"
 fi
 if [[ $OPTCLEAN -ne 0 ]]; then
-    CROSS_COMPILE="${BSP_CROSS_COMPILE}" make -C extra/bootloader clean MCCI_BOOTLOADER_KEYFILE="$KEYFILE" ${MCCIBOOTLOADER_IMAGE_FLAGS_ARG}
+    CROSS_COMPILE="${BSP_CROSS_COMPILE}" make -C extra/bootloader clean T_BUILDTREE="$OUTPUT_BOOTLOADER" MCCI_BOOTLOADER_KEYFILE="$KEYFILE" ${MCCIBOOTLOADER_IMAGE_FLAGS_ARG}
 fi
-CROSS_COMPILE="${BSP_CROSS_COMPILE}" make -C extra/bootloader all MCCI_BOOTLOADER_KEYFILE="$KEYFILE" ${MCCIBOOTLOADER_IMAGE_FLAGS_ARG}
+CROSS_COMPILE="${BSP_CROSS_COMPILE}" make -C extra/bootloader all T_BUILDTREE="$OUTPUT_BOOTLOADER" MCCI_BOOTLOADER_KEYFILE="$KEYFILE" ${MCCIBOOTLOADER_IMAGE_FLAGS_ARG}
 
 # copy bootloader images to output dir
 _verbose "Save bootloader"
-cp -p extra/bootloader/build/arm-none-eabi/release/${BOOTLOADER_NAME}.* "$OUTPUT"
+cp -p "$OUTPUT_BOOTLOADER"/arm-none-eabi/release/${BOOTLOADER_NAME}.* "$OUTPUT"
 
 # combine hex images to simplify download
 _verbose "Combine bootloader and app"
@@ -241,8 +401,18 @@ head -n-1 "$OUTPUT"/${BOOTLOADER_NAME}.hex | cat - "$OUTPUT"/"${ARDUINO_SOURCE_B
 
 # make a packed DFU variant
 _verbose "Make a packed DFU variant"
-pip3 install IntelHex
+pip3 --disable-pip-version-check -q install IntelHex
 python3 extra/dfu-util/dfuse-pack.py -i "$OUTPUT"/${BOOTLOADER_NAME}.hex -i "$OUTPUT"/"${ARDUINO_SOURCE_BASE}".ino.hex -D 0x040e:0x00a1 "$OUTPUT"/"${ARDUINO_SOURCE_BASE}"-bootloader.dfu
+
+# rename everything
+_verbose "Rename output files to include build signature"
+for ext in hex dfu elf bin; do
+    for file in "$OUTPUT"/*."${ext}" ; do
+        newfile="$OUTPUT"/$(basename "$file" ".${ext}")-${OUTPUT_SIG}.${ext}
+        _debug "rename $(basename "$file") => $(basename "$newfile")"
+        mv -f "$file" "$newfile"
+    done
+done
 
 # all done
 _verbose "done"
