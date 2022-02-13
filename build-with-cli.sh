@@ -47,6 +47,16 @@ readonly OPTREGION_DEFAULT=us915
 readonly OPTNETWORK_DEFAULT=ttn
 readonly OPTSUBBAND_DEFAULT=default
 
+readonly OPTCLOCK_DEFAULT=32
+declare -A OPTCLOCK_LIST
+OPTCLOCK_LIST=([2]=msi2097k [4]=msi4194k [16]=hsi16m [24]=pll24m [32]=pll32m)
+readonly OPTCLOCK_LIST
+
+readonly OPTXSERIAL_DEFAULT=usb
+declare -A OPTXSERIAL_LIST
+OPTXSERIAL_LIST=([usb]=usb [hw]=generic [none]=none [both]=usbhwserial)
+readonly OPTXSERIAL_LIST
+
 readonly ARDUINO_FQBN="mcci:stm32:mcci_catena_4610"
 readonly ARDUINO_SOURCE=libraries/mcci-catena-4430/examples/Catena4430_Sensor/Catena4430_Sensor.ino
 readonly BOOTLOADER_NAME=McciBootloader_46xx
@@ -118,6 +128,13 @@ Options:
     --subband={subband} sets the target subband. This should be
         'default', or a zero-origin number. The default is ${OPTSUBBAND_DEFAULT}.
 
+    --clock={rate} sets the target clock rate. This should be one of
+        {${!OPTCLOCK_LIST[@]}}. The default is ${OPTCLOCK_DEFAULT}.
+
+    --serial={how} specifies how the target serial port is to be configured.
+        This should be in {${!OPTXSERIAL_LIST[@]}}.  Clock rate must be >= 16
+        in order for USB serial to work. The default is ${OPTXSERIAL_DEFAULT}.
+
     --debug turns on more debug output.
 
     --help prints this message.
@@ -148,6 +165,8 @@ OPTKEYFILE="${OPTKEYFILE_DEFAULT}"
 OPTREGION="${OPTREGION_DEFAULT}"
 OPTNETWORK="${OPTNETWORK_DEFAULT}"
 OPTSUBBAND="${OPTSUBBAND_DEFAULT}"
+OPTXSERIAL="${OPTXSERIAL_DEFAULT}"
+OPTCLOCK="${OPTCLOCK_DEFAULT}"
 
 # make sure everything is clean
 for opt in "$@"; do
@@ -182,6 +201,12 @@ for opt in "$@"; do
     "--subband="* )
         OPTSUBBAND="${opt#--subband=}"
         ;;
+    "--clock="* )
+        OPTCLOCK="${opt#--clock=}"
+        ;;
+    "--serial="* )
+        OPTXSERIAL="${opt#--serial=}"
+        ;;
     "--debug" )
         OPTDEBUG=1
         ;;
@@ -198,6 +223,8 @@ cd "$PDIR"
 [[ -z "$OPTREGION" ]] && _error "region must not be empty"
 [[ -z "$OPTNETWORK" ]] && _error "network must not be empty"
 [[ -z "$OPTSUBBAND" ]] && _error "subband must not be empty"
+[[ -z "${OPTXSERIAL_LIST[${OPTXSERIAL}]}" ]] && _fatal "--serial=$OPTXSERIAL not in ${!OPTXSERIAL_LIST[*]}"
+[[ -z "${OPTCLOCK_LIST[${OPTCLOCK}]}" ]] && _fatal "--clock=$OPTCLOCK not in ${!OPTCLOCK_LIST[*]}"
 
 ##############################################################################
 # Compute the arduino platform options to be used.
@@ -205,8 +232,8 @@ cd "$PDIR"
 
 ARDUINO_OPTIONS="$(echo "
                     upload_method=STLink
-                    xserial=usb
-                    sysclk=pll32m
+                    xserial=${OPTXSERIAL_LIST[${OPTXSERIAL}]}
+                    sysclk=${OPTCLOCK_LIST[${OPTCLOCK}]}
                     boot=trusted
                     opt=osstd
                     lorawan_region=${OPTREGION}
@@ -248,7 +275,7 @@ fi
 BSP_MCCI=$HOME/.arduino15/packages/mcci
 BSP_CORE=$BSP_MCCI/hardware/stm32/
 LOCAL_BSP_CORE="$(realpath extra/Arduino_Core_STM32)"
-OUTPUT_SIG="v${SKETCHVERSION}-${OPTNETWORK}-${OPTREGION}-${OPTSUBBAND}-${BUILDKEYSIG}"
+OUTPUT_SIG="v${SKETCHVERSION}-${OPTNETWORK}-${OPTREGION}-${OPTSUBBAND}-clk${OPTCLOCK}-ser${OPTXSERIAL}-${BUILDKEYSIG}"
 OUTPUT_ROOT="$(realpath "$INVOKEDIR/build/${OUTPUT_SIG}")"
 OUTPUT="${OUTPUT_ROOT}/ide"
 OUTPUT_BOOTLOADER="${OUTPUT_ROOT}/boot"
