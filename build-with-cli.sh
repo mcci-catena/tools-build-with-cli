@@ -220,9 +220,9 @@ done
 #--- change to directory containing script
 cd "$PDIR"
 
-[[ -z "$OPTREGION" ]] && _error "region must not be empty"
-[[ -z "$OPTNETWORK" ]] && _error "network must not be empty"
-[[ -z "$OPTSUBBAND" ]] && _error "subband must not be empty"
+[[ -z "$OPTREGION" ]] && _fatal "region must not be empty"
+[[ -z "$OPTNETWORK" ]] && _fatal "network must not be empty"
+[[ -z "$OPTSUBBAND" ]] && _fatal "subband must not be empty"
 [[ -z "${OPTXSERIAL_LIST[${OPTXSERIAL}]}" ]] && _fatal "--serial=$OPTXSERIAL not in ${!OPTXSERIAL_LIST[*]}"
 [[ -z "${OPTCLOCK_LIST[${OPTCLOCK}]}" ]] && _fatal "--clock=$OPTCLOCK not in ${!OPTCLOCK_LIST[*]}"
 
