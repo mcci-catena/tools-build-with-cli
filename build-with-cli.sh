@@ -35,6 +35,8 @@ readonly INVOKEDIR
 SCRIPTNAME=$(basename "$0")
 readonly SCRIPTNAME
 
+[[ -z "$PNAME" ]] && PNAME="$SCRIPTNAME"
+
 PDIR=$(realpath "$(dirname "$0")")
 readonly PDIR
 
