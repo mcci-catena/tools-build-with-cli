@@ -25,27 +25,28 @@ set -e
 INVOKEDIR=$(realpath .)
 readonly INVOKEDIR
 
-SCRIPTNAME=$(basename "$0")
+SCRIPTPATH="$(realpath "$BASH_SOURCE")"
+SCRIPTNAME=$(basename "$SCRIPTPATH")
 readonly SCRIPTNAME
 
 [[ -z "$PNAME" ]] && PNAME="$SCRIPTNAME"
 
-PDIR=$(realpath "$(dirname "$0")")
+PDIR=$(realpath "$(dirname "$SCRIPTPATH")/../..")
 readonly PDIR
 
 function _setDefaults {
-    typeset -i OPTDEBUG=0
-    typeset -i OPTVERBOSE=0
+    declare -g -i OPTDEBUG=0
+    declare -g -i OPTVERBOSE=0
 
-    declare -A OPTCLOCK_LIST
+    declare -g -A OPTCLOCK_LIST
     OPTCLOCK_LIST=([2]=msi2097k [4]=msi4194k [16]=hsi16m [24]=pll24m [32]=pll32m)
     readonly OPTCLOCK_LIST
 
-    declare -A OPTXSERIAL_LIST
+    declare -g -A OPTXSERIAL_LIST
     OPTXSERIAL_LIST=([usb]=usb [hw]=generic [none]=none [both]=usbhwserial)
     readonly OPTXSERIAL_LIST
 
-    declare -A MCCI_ARDUINO_BOARD_LIST
+    declare -g -A MCCI_ARDUINO_BOARD_LIST
     MCCI_ARDUINO_BOARD_LIST=(
         [4610]=mcci:stm32:mcci_catena_4610
         [4612]=mcci:stm32:mcci_catena_4612
@@ -56,7 +57,7 @@ function _setDefaults {
         )
     readonly MCCI_ARDUINO_BOARD_LIST
 
-    declare -A MCCI_ARDUINO_BOOTLOADER_LIST
+    declare -g -A MCCI_ARDUINO_BOOTLOADER_LIST
     MCCI_ARDUINO_BOOTLOADER_LIST=(
         [4610]=46xx
         [4612]=46xx
@@ -70,14 +71,14 @@ function _setDefaults {
 
 function _setProject {
     #---- project settings -----
-    readonly OPTKEYFILE_DEFAULT="$INVOKEDIR/keys/project.pem"
-    readonly OPTREGION_DEFAULT=us915
-    readonly OPTNETWORK_DEFAULT=ttn
-    readonly OPTSUBBAND_DEFAULT=default
-    readonly OPTCLOCK_DEFAULT=32
-    readonly OPTXSERIAL_DEFAULT=usb
-    readonly OPTARDUINO_BOARD_DEFAULT=4610
-    readonly OPTARDUINO_SOURCE_DEFAULT=libraries/mcci-catena-4430/examples/Catena4430_Sensor/Catena4430_Sensor.ino
+    declare -r -g OPTKEYFILE_DEFAULT="$INVOKEDIR/keys/project.pem"
+    declare -r -g OPTREGION_DEFAULT=us915
+    declare -r -g OPTNETWORK_DEFAULT=ttn
+    declare -r -g OPTSUBBAND_DEFAULT=default
+    declare -r -g OPTCLOCK_DEFAULT=32
+    declare -r -g OPTXSERIAL_DEFAULT=usb
+    declare -r -g OPTARDUINO_BOARD_DEFAULT=4610
+    declare -r -g OPTARDUINO_SOURCE_DEFAULT=libraries/mcci-catena-4430/examples/Catena4430_Sensor/Catena4430_Sensor.ino
 }
 
 ##############################################################################
@@ -85,7 +86,7 @@ function _setProject {
 ##############################################################################
 
 function _verbose {
-	if [ "$OPTVERBOSE" -ne 0 ]; then
+	if [[ "$OPTVERBOSE" -ne 0 ]]; then
 		echo "$PNAME:" "$@" 1>&2
 	fi
 }
@@ -95,7 +96,7 @@ function _verbose {
 ##############################################################################
 
 function _debug {
-	if [ "$OPTDEBUG" -ne 0 ]; then
+	if [[ "$OPTDEBUG" -ne 0 ]]; then
 		echo "$@" 1>&2
 	fi
 }
@@ -122,9 +123,9 @@ function _fatal {
 function _help {
     less <<.
 ${PNAME} calls ${SCRIPTNAME} in order to build the target
-firmware $(basename ${ARDUINO_SOURCE}) using the arduino-cli tool.
+firmware $(basename ${OPTARDUINO_SOURCE_DEFAULT}) using the arduino-cli tool.
 
-All the work is in the script ${SCRIPTNAME} is invoked from a
+All the work is in the script ${SCRIPTNAME}, which is invoked from a
 top-level collection, not directly.
 
 Options:
@@ -182,10 +183,10 @@ fi
 ##############################################################################
 
 function _parseOptions {
-    typeset -i OPTTESTSIGN=0
+    declare -g -i OPTTESTSIGN=0
     #typeset -i OPTVERBOSE=0    -- during init
     #typeset -i OPTDEBUG=0
-    typeset -i OPTCLEAN=0
+    declare -g -i OPTCLEAN=0
 
     OPTKEYFILE="${OPTKEYFILE_DEFAULT}"
     OPTREGION="${OPTREGION_DEFAULT}"
@@ -535,8 +536,8 @@ function _renameResults {
 ##############################################################################
 
 function _doBuild {
-    _checkPreconditions
     _setDefaults
+    _checkPreconditions
     _setProject
     _parseOptions "$@"
     cd "$PDIR"
@@ -547,13 +548,13 @@ function _doBuild {
     _setBuildKeySig
     _makeOutputDir
     _setBspVars
-    _setupOutput
 
     trap '_cleanup_trap' EXIT
     trap '_errcleanup_trap' ERR
 
     _setupBsp
     _setupPrivateKey
+    _setupOutput
     _removeOldBuilds
     _buildSketchWithCli
     _buildBootloader
