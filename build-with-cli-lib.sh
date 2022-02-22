@@ -513,7 +513,7 @@ function _combineImages {
 
     # make a packed DFU variant
     _verbose "Make a packed DFU variant"
-    pip3 --disable-pip-version-check -q install IntelHex
+    python3 -m pip --disable-pip-version-check -q install IntelHex
     python3 extra/dfu-util/dfuse-pack.py -i "$OUTPUT"/${BOOTLOADER_NAME}.hex -i "$OUTPUT"/"${ARDUINO_SOURCE_BASE}".ino.hex -D 0x040e:0x00a1 "$OUTPUT"/"${ARDUINO_SOURCE_BASE}"-bootloader.dfu
 }
 
