@@ -71,16 +71,28 @@ function _setDefaults {
     readonly MCCI_ARDUINO_BOOTLOADER_LIST
 }
 
+##############################################################################
+# Override this function with one of your own
+##############################################################################
 function _setProject {
+    _error "You must provide your own _setProject function"
+}
+
+##############################################################################
+# Check that project settings are complete
+##############################################################################
+function _checkProject {
     #---- project settings -----
-    declare -r -g OPTKEYFILE_DEFAULT="$INVOKEDIR/keys/project.pem"
-    declare -r -g OPTREGION_DEFAULT=us915
-    declare -r -g OPTNETWORK_DEFAULT=ttn
-    declare -r -g OPTSUBBAND_DEFAULT=default
-    declare -r -g OPTCLOCK_DEFAULT=32
-    declare -r -g OPTXSERIAL_DEFAULT=usb
-    declare -r -g OPTARDUINO_BOARD_DEFAULT=4610
-    declare -r -g OPTARDUINO_SOURCE_DEFAULT=libraries/mcci-catena-4430/examples/Catena4430_Sensor/Catena4430_Sensor.ino
+    [[ -n "$OPTKEYFILE_DEFAULT" ]]          || _error "OPTKEYFILE_DEFAULT must be set to a suitable default keyfile location (.pem)"
+    [[ -n "$OPTREGION_DEFAULT" ]]           || _error "OPTREGION_DEFAULT must be set to a value from MCCI_ARDUINO_BOOTLOADER_LIST"
+    [[ -n "$OPTNETWORK_DEFAULT" ]]          || _error "OPTNETWORK_DEFAULT must be set to a target network"
+    [[ -n "$OPTSUBBAND_DEFAULT" ]]          || _error "OPTSUBBAND_DEFAULT must be set"
+    [[ -n "$OPTCLOCK_DEFAULT" ]]            || _error "OPTCLOCK_DEFAULT must be set"
+    [[ -n "$OPTXSERIAL_DEFAULT" ]]          || _error "OPTXSERIAL_DEFAULT must be set"
+    [[ -n "$OPTARDUINO_BOARD_DEFAULT" ]]    || _error "OPTARDUINO_BOARD_DEFAULT must be set"
+    [[ -n "$OPTARDUINO_SOURCE_DEFAULT" ]]   || _error "OPTARDUINO_SOURCE_DEFAULT must be set"
+    [[ -n "$OPTOUTPUTNAME_DEFAULT" ]]       || _error "OPTOUTPUTNAME_DEFAULT must be set"
+    true
 }
 
 ##############################################################################
@@ -160,6 +172,10 @@ Options:
 
     --sketch={file} gives the path to the sketch to be built.
 
+    --outputname={name} gives the base pattern for the output name. The
+        default is ${OPTOUTPUTNAME_DEFAULT}, unless --sketch is given, in
+        which case the default is the name of the sketch.
+
     --debug turns on more debug output.
 
     --help prints this message.
@@ -190,6 +206,7 @@ function _parseOptions {
     #typeset -i OPTVERBOSE=0    -- during init
     #typeset -i OPTDEBUG=0
     declare -g -i OPTCLEAN=0
+    declare -g -i OPTSKETCH=0
 
     OPTKEYFILE="${OPTKEYFILE_DEFAULT}"
     OPTREGION="${OPTREGION_DEFAULT}"
@@ -199,6 +216,7 @@ function _parseOptions {
     OPTCLOCK="${OPTCLOCK_DEFAULT}"
     OPTARDUINO_SOURCE="${OPTARDUINO_SOURCE_DEFAULT}"
     OPTARDUINO_BOARD="${OPTARDUINO_BOARD_DEFAULT}"
+    OPTOUTPUTNAME=
 
     # make sure everything is clean
     for opt in "$@"; do
@@ -241,6 +259,7 @@ function _parseOptions {
             ;;
         "--sketch="* )
             OPTARDUINO_SOURCE="${opt#--sketch=}"
+            OPTSKETCH=1
             ;;
         "--debug" )
             OPTDEBUG=1
@@ -353,9 +372,17 @@ function _setBspVars {
 }
 
 function _setupOutput {
-    _verbose "Setup output tree"
     OUTPUT_SIG="v${SKETCHVERSION}-${OPTNETWORK}-${OPTREGION}-${OPTSUBBAND}-clk${OPTCLOCK}-ser${OPTXSERIAL}-${BUILDKEYSIG}"
-    OUTPUT_ROOT="$(realpath "$INVOKEDIR/build/$(basename "$ARDUINO_SOURCE")-${OUTPUT_SIG}")"
+    if [[ -n "$OPTOUTPUTNAME" ]]; then
+        OUTPUT_SLUG="${OPTOUTPUTNAME}-${OUTPUT_SIG}"
+    elif [[ $OPTSKETCH -ne 0 ]]; then
+        OUTPUT_SLUG="$(basename "$ARDUINO_SOURCE")-${OUTPUT_SIG}"
+    else
+        OUTPUT_SLUG="${OPTOUTPUTNAME_DEFAULT}-${OUTPUT_SIG}"
+    fi
+    [[ -n "$OUTPUT_SLUG" ]] || _error "Internal error: empty OUTPUT_SLUG"
+    OUTPUT_ROOT="$(realpath "$INVOKEDIR/build")/$OUTPUT_SLUG"
+    _verbose "output tree:" "$OUTPUT_ROOT"
     OUTPUT="${OUTPUT_ROOT}/ide"
     OUTPUT_BOOTLOADER="${OUTPUT_ROOT}/boot"
 
@@ -544,6 +571,7 @@ function _doBuild {
     _setDefaults
     _checkPreconditions
     _setProject
+    _checkProject
     _parseOptions "$@"
     cd "$PDIR"
     _checkargs
