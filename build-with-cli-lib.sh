@@ -25,6 +25,8 @@ set -e
 INVOKEDIR=$(realpath .)
 readonly INVOKEDIR
 
+# we only want tthe first word.
+# shellcheck disable=SC2128
 SCRIPTPATH="$(realpath "$BASH_SOURCE")"
 SCRIPTNAME=$(basename "$SCRIPTPATH")
 readonly SCRIPTNAME
@@ -121,9 +123,10 @@ function _fatal {
 ##############################################################################
 
 function _help {
+    # shellcheck disable=SC2086
     less <<.
 ${PNAME} calls ${SCRIPTNAME} in order to build the target
-firmware $(basename ${OPTARDUINO_SOURCE_DEFAULT}) using the arduino-cli tool.
+firmware $(basename "${OPTARDUINO_SOURCE_DEFAULT}") using the arduino-cli tool.
 
 All the work is in the script ${SCRIPTNAME}, which is invoked from a
 top-level collection, not directly.
@@ -257,7 +260,7 @@ function _setfqbn {
     _debug "Set up FTQBN and bootloader"
     [[ -z "$OPTARDUINO_BOARD" ]] && _fatal "Arduino board must not be null"
     ARDUINO_FQBN="${MCCI_ARDUINO_BOARD_LIST[$OPTARDUINO_BOARD]}"
-    [[ -z "ARDUINO_FQBN" ]] && _fatal "Arduino board not recognized: $OPTARDUINO_BOARD"
+    [[ -z "$ARDUINO_FQBN" ]] && _fatal "Arduino board not recognized: $OPTARDUINO_BOARD"
 
     readonly BOOTLOADER_NAME=McciBootloader_"${MCCI_ARDUINO_BOOTLOADER_LIST[$OPTARDUINO_BOARD]}"
 }
@@ -466,12 +469,14 @@ function _removeOldBuilds {
 
 # do a build
 function _buildSketchWithCli {
+    # shellcheck disable=SC2086
     _verbose arduino-cli compile $ARDUINO_CLI_FLAGS \
         -b "${ARDUINO_FQBN}":"${ARDUINO_OPTIONS//[[:space:]]/,}" \
         --build-path "$OUTPUT" \
         --libraries libraries \
         "${ARDUINO_SOURCE}"
 
+    # shellcheck disable=SC2086
     arduino-cli compile $ARDUINO_CLI_FLAGS \
         -b "${ARDUINO_FQBN}":"${ARDUINO_OPTIONS//[[:space:]]/,}" \
         --build-path "$OUTPUT" \
@@ -500,7 +505,7 @@ function _buildBootloader {
 
     # copy bootloader images to output dir
     _verbose "Save bootloader"
-    cp -p "$OUTPUT_BOOTLOADER"/arm-none-eabi/release/${BOOTLOADER_NAME}.* "$OUTPUT"
+    cp -p "$OUTPUT_BOOTLOADER"/arm-none-eabi/release/"${BOOTLOADER_NAME}".* "$OUTPUT"
 }
 
 # combine hex images to simplify download
@@ -508,13 +513,13 @@ function _combineImages {
     _verbose "Combine bootloader and app"
 
     # all lines but the last, then append the main app
-    ARDUINO_SOURCE_BASE="$(basename ${ARDUINO_SOURCE} .ino)"
-    head -n-1 "$OUTPUT"/${BOOTLOADER_NAME}.hex | cat - "$OUTPUT"/"${ARDUINO_SOURCE_BASE}".ino.hex > "$OUTPUT"/"${ARDUINO_SOURCE_BASE}"-bootloader.hex
+    ARDUINO_SOURCE_BASE="$(basename "${ARDUINO_SOURCE}" .ino)"
+    head -n-1 "$OUTPUT"/"${BOOTLOADER_NAME}".hex | cat - "$OUTPUT"/"${ARDUINO_SOURCE_BASE}".ino.hex > "$OUTPUT"/"${ARDUINO_SOURCE_BASE}"-bootloader.hex
 
     # make a packed DFU variant
     _verbose "Make a packed DFU variant"
     python3 -m pip --disable-pip-version-check -q install IntelHex
-    python3 extra/dfu-util/dfuse-pack.py -i "$OUTPUT"/${BOOTLOADER_NAME}.hex -i "$OUTPUT"/"${ARDUINO_SOURCE_BASE}".ino.hex -D 0x040e:0x00a1 "$OUTPUT"/"${ARDUINO_SOURCE_BASE}"-bootloader.dfu
+    python3 extra/dfu-util/dfuse-pack.py -i "$OUTPUT"/"${BOOTLOADER_NAME}".hex -i "$OUTPUT"/"${ARDUINO_SOURCE_BASE}".ino.hex -D 0x040e:0x00a1 "$OUTPUT"/"${ARDUINO_SOURCE_BASE}"-bootloader.dfu
 }
 
 # rename everything
