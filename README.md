@@ -1,5 +1,7 @@
 # Common build script for MCCI product collections
 
+[![GitHub release](https://img.shields.io/github/release/mcci-catena/tools-build-with-cli.svg)](https://github.com/mcci-catena/tools-build-with-cli/releases/latest) [![GitHub commits](https://img.shields.io/github/commits-since/mcci-catena/tools-build-with-cli/latest.svg)](https://github.com/mcci-catena/tools-build-with-cli/compare/v2.0.1...main)
+
 ## Input from calling script
 
 ### `_setProject`
@@ -32,6 +34,8 @@ The default `_getVersion` function looks for the pattern `^constexpr std::uint32
 
 ### Release History
 
+- v2.0.1 fixes issues with error checking; correct builds worked ok. ([#5](https://github.com/mcci-catena/tools-build-with-cli/issues/5)).
+
 - v2.0.0 adds `OPTOUTPUTNAME_DEFAULT` as required input from the caller. It's therefore a breaking change.
 
 - v1.0.0 is the initial release.
@@ -40,11 +44,11 @@ The default `_getVersion` function looks for the pattern `^constexpr std::uint32
 
 MCCI and MCCI Catena are registered trademarks of MCCI Corporation. LoRa is a registered trademark of Semtech Corporation. LoRaWAN is a registered trademark of the LoRa Alliance.
 
-This document and the contents of this repository are copyright 2021, MCCI Corporation.
+This document and the contents of this repository are copyright 2021-2022, MCCI Corporation.
 
 ### License
 
-This repository is released under the [MIT](./LICENSE.md) license. Commercial licenses are also available from MCCI Corporation.
+This repository is released under the [MIT license](./LICENSE.md). Commercial licenses are also available from MCCI Corporation.
 
 ### Support Open Source Hardware and Software
 
