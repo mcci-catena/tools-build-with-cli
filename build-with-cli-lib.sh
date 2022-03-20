@@ -75,7 +75,7 @@ function _setDefaults {
 # Override this function with one of your own
 ##############################################################################
 function _setProject {
-    _error "You must provide your own _setProject function"
+    _fatal "You must provide your own _setProject function"
 }
 
 ##############################################################################
@@ -83,15 +83,15 @@ function _setProject {
 ##############################################################################
 function _checkProject {
     #---- project settings -----
-    [[ -n "$OPTKEYFILE_DEFAULT" ]]          || _error "OPTKEYFILE_DEFAULT must be set to a suitable default keyfile location (.pem)"
-    [[ -n "$OPTREGION_DEFAULT" ]]           || _error "OPTREGION_DEFAULT must be set to a value from MCCI_ARDUINO_BOOTLOADER_LIST"
-    [[ -n "$OPTNETWORK_DEFAULT" ]]          || _error "OPTNETWORK_DEFAULT must be set to a target network"
-    [[ -n "$OPTSUBBAND_DEFAULT" ]]          || _error "OPTSUBBAND_DEFAULT must be set"
-    [[ -n "$OPTCLOCK_DEFAULT" ]]            || _error "OPTCLOCK_DEFAULT must be set"
-    [[ -n "$OPTXSERIAL_DEFAULT" ]]          || _error "OPTXSERIAL_DEFAULT must be set"
-    [[ -n "$OPTARDUINO_BOARD_DEFAULT" ]]    || _error "OPTARDUINO_BOARD_DEFAULT must be set"
-    [[ -n "$OPTARDUINO_SOURCE_DEFAULT" ]]   || _error "OPTARDUINO_SOURCE_DEFAULT must be set"
-    [[ -n "$OPTOUTPUTNAME_DEFAULT" ]]       || _error "OPTOUTPUTNAME_DEFAULT must be set"
+    [[ -n "$OPTKEYFILE_DEFAULT" ]]          || _fatal "OPTKEYFILE_DEFAULT must be set to a suitable default keyfile location (.pem)"
+    [[ -n "$OPTREGION_DEFAULT" ]]           || _fatal "OPTREGION_DEFAULT must be set to a value from MCCI_ARDUINO_BOOTLOADER_LIST"
+    [[ -n "$OPTNETWORK_DEFAULT" ]]          || _fatal "OPTNETWORK_DEFAULT must be set to a target network"
+    [[ -n "$OPTSUBBAND_DEFAULT" ]]          || _fatal "OPTSUBBAND_DEFAULT must be set"
+    [[ -n "$OPTCLOCK_DEFAULT" ]]            || _fatal "OPTCLOCK_DEFAULT must be set"
+    [[ -n "$OPTXSERIAL_DEFAULT" ]]          || _fatal "OPTXSERIAL_DEFAULT must be set"
+    [[ -n "$OPTARDUINO_BOARD_DEFAULT" ]]    || _fatal "OPTARDUINO_BOARD_DEFAULT must be set"
+    [[ -n "$OPTARDUINO_SOURCE_DEFAULT" ]]   || _fatal "OPTARDUINO_SOURCE_DEFAULT must be set"
+    [[ -n "$OPTOUTPUTNAME_DEFAULT" ]]       || _fatal "OPTOUTPUTNAME_DEFAULT must be set"
     true
 }
 
@@ -127,7 +127,7 @@ function _error {
 
 #### _fatal: print an error message and then exit the script.
 function _fatal {
-	_error "$@" ; exit 1
+	_error "fatal error:" "$@" ; exit 1
 }
 
 ##############################################################################
@@ -380,7 +380,7 @@ function _setupOutput {
     else
         OUTPUT_SLUG="${OPTOUTPUTNAME_DEFAULT}-${OUTPUT_SIG}"
     fi
-    [[ -n "$OUTPUT_SLUG" ]] || _error "Internal error: empty OUTPUT_SLUG"
+    [[ -n "$OUTPUT_SLUG" ]] || _fatal "Internal error: empty OUTPUT_SLUG"
     OUTPUT_ROOT="$(realpath "$INVOKEDIR/build")/$OUTPUT_SLUG"
     _verbose "output tree:" "$OUTPUT_ROOT"
     OUTPUT="${OUTPUT_ROOT}/ide"
