@@ -69,6 +69,12 @@ function _setDefaults {
         [4802]=4801
     )
     readonly MCCI_ARDUINO_BOOTLOADER_LIST
+
+    declare -g -A MCCI_ARDUINO_TECHNOLOGY_LIST
+    MCCI_ARDUINO_TECHNOLOGY_LIST=(
+        [sigfox]=sigfox
+        [lorawan]=lorawan
+    )
 }
 
 ##############################################################################
@@ -92,6 +98,7 @@ function _checkProject {
     [[ -n "$OPTARDUINO_BOARD_DEFAULT" ]]    || _fatal "OPTARDUINO_BOARD_DEFAULT must be set"
     [[ -n "$OPTARDUINO_SOURCE_DEFAULT" ]]   || _fatal "OPTARDUINO_SOURCE_DEFAULT must be set"
     [[ -n "$OPTOUTPUTNAME_DEFAULT" ]]       || _fatal "OPTOUTPUTNAME_DEFAULT must be set"
+    [[ -n "$OPTARDUINO_TECHNOLOGY_DEFAULT" ]]       || _fatal "OPTARDUINO_TECNOLOGY_DEFAULT must be set to a value from MCCI_ARDUINO_TECHNOLOGY_LIST"
     true
 }
 
@@ -217,6 +224,7 @@ function _parseOptions {
     OPTARDUINO_SOURCE="${OPTARDUINO_SOURCE_DEFAULT}"
     OPTARDUINO_BOARD="${OPTARDUINO_BOARD_DEFAULT}"
     OPTOUTPUTNAME=
+    OPTARDUINO_TECHNOLOGY="${OPTARDUINO_TECHNOLOGY_DEFAULT:-lorawan}"
 
     # make sure everything is clean
     for opt in "$@"; do
@@ -321,6 +329,7 @@ function _setarduinooptions {
                         lorawan_region=${OPTREGION}
                         lorawan_network=${OPTNETWORK}
                         lorawan_subband=${OPTSUBBAND}
+                        technology=${MCCI_ARDUINO_TECHNOLOGY_LIST[${OPTARDUINO_TECHNOLOGY}]}
                         " | xargs echo)"
     readonly ARDUINO_OPTIONS
     _debug "ARDUINO_OPTIONS: ${ARDUINO_OPTIONS}"
