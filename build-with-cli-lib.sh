@@ -56,6 +56,7 @@ function _setDefaults {
         [4630]=mcci:stm32:mcci_catena_4630
         [4801]=mcci:stm32:mcci_catena_4801
         [4802]=mcci:stm32:mcci_catena_4802
+        [4917]=mcci:stm32:mcci_model_4917
         )
     readonly MCCI_ARDUINO_BOARD_LIST
 
@@ -67,6 +68,7 @@ function _setDefaults {
         [4630]=46xx
         [4801]=4801
         [4802]=4801
+        [4917]=46xx
     )
     readonly MCCI_ARDUINO_BOOTLOADER_LIST
 }
