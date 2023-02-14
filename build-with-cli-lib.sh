@@ -365,7 +365,7 @@ function _makeOutputDir {
 function _setBspVars {
     BSP_MCCI=$HOME/.arduino15/packages/mcci
     BSP_CORE=$BSP_MCCI/hardware/stm32/
-    LOCAL_BSP_CORE="$(realpath extra/Arduino_Core_STM32)"
+    LOCAL_BSP_CORE="$(realpath extras/Arduino_Core_STM32)"
 
     # set up links to IDE
     if [[ ! -d "$BSP_CORE" ]]; then
@@ -486,7 +486,7 @@ function _setupPrivateKey {
         rm -rf "$LOCAL_BSP_CORE"/platform.local.txt
 
         # set input key pay for signing bootloader
-        KEYFILE="$(realpath extra/bootloader/tools/mccibootloader_image/test/mcci-test.pem)"
+        KEYFILE="$(realpath extras/bootloader/tools/mccibootloader_image/test/mcci-test.pem)"
     fi
 }
 
@@ -518,9 +518,9 @@ function _buildBootloader {
     _verbose "Building mccibootloader_image"
 
     if [[ $OPTCLEAN -ne 0 ]]; then
-        make -C extra/bootloader/tools/mccibootloader_image clean
+        make -C extras/bootloader/tools/mccibootloader_image clean
     fi
-    make -C extra/bootloader/tools/mccibootloader_image all
+    make -C extras/bootloader/tools/mccibootloader_image all
 
     _verbose "Building and signing bootloader"
     MCCIBOOTLOADER_IMAGE_FLAGS_ARG=
@@ -528,9 +528,9 @@ function _buildBootloader {
         MCCIBOOTLOADER_IMAGE_FLAGS_ARG="MCCIBOOTLOADER_IMAGE_FLAGS=-v"
     fi
     if [[ $OPTCLEAN -ne 0 ]]; then
-        CROSS_COMPILE="${BSP_CROSS_COMPILE}" make -C extra/bootloader clean T_BUILDTREE="$OUTPUT_BOOTLOADER" MCCI_BOOTLOADER_KEYFILE="$KEYFILE" ${MCCIBOOTLOADER_IMAGE_FLAGS_ARG}
+        CROSS_COMPILE="${BSP_CROSS_COMPILE}" make -C extras/bootloader clean T_BUILDTREE="$OUTPUT_BOOTLOADER" MCCI_BOOTLOADER_KEYFILE="$KEYFILE" ${MCCIBOOTLOADER_IMAGE_FLAGS_ARG}
     fi
-    CROSS_COMPILE="${BSP_CROSS_COMPILE}" make -C extra/bootloader all T_BUILDTREE="$OUTPUT_BOOTLOADER" MCCI_BOOTLOADER_KEYFILE="$KEYFILE" ${MCCIBOOTLOADER_IMAGE_FLAGS_ARG}
+    CROSS_COMPILE="${BSP_CROSS_COMPILE}" make -C extras/bootloader all T_BUILDTREE="$OUTPUT_BOOTLOADER" MCCI_BOOTLOADER_KEYFILE="$KEYFILE" ${MCCIBOOTLOADER_IMAGE_FLAGS_ARG}
 
     # copy bootloader images to output dir
     _verbose "Save bootloader"
@@ -548,7 +548,7 @@ function _combineImages {
     # make a packed DFU variant
     _verbose "Make a packed DFU variant"
     python3 -m pip --disable-pip-version-check -q install IntelHex
-    python3 extra/dfu-util/dfuse-pack.py -i "$OUTPUT"/"${BOOTLOADER_NAME}".hex -i "$OUTPUT"/"${ARDUINO_SOURCE_BASE}".ino.hex -D 0x040e:0x00a1 "$OUTPUT"/"${ARDUINO_SOURCE_BASE}"-bootloader.dfu
+    python3 extras/dfu-util/dfuse-pack.py -i "$OUTPUT"/"${BOOTLOADER_NAME}".hex -i "$OUTPUT"/"${ARDUINO_SOURCE_BASE}".ino.hex -D 0x040e:0x00a1 "$OUTPUT"/"${ARDUINO_SOURCE_BASE}"-bootloader.dfu
 }
 
 # rename everything
