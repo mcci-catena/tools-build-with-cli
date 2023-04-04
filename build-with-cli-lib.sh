@@ -45,7 +45,7 @@ function _setDefaults {
     readonly OPTCLOCK_LIST
 
     declare -g -A OPTXSERIAL_LIST
-    OPTXSERIAL_LIST=([usb]=usb [hw]=generic [none]=none [both]=usbhwserial)
+    OPTXSERIAL_LIST=([usb]=usb [hw]=generic [none]=none [both]=usbhwserial [two]=two)
     readonly OPTXSERIAL_LIST
 
     declare -g -A MCCI_ARDUINO_BOARD_LIST
