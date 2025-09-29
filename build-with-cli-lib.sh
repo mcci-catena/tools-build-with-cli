@@ -373,7 +373,7 @@ function _makeOutputDir {
 function _setBspVars {
     BSP_MCCI=$HOME/.arduino15/packages/mcci
     BSP_CORE=$BSP_MCCI/hardware/stm32/
-    LOCAL_BSP_CORE="$(realpath extra/Arduino_Core_STM32)"
+    LOCAL_BSP_CORE="$(realpath extra/MCCI_Arduino_Core_STM32)"
 
     # set up links to IDE
     if [[ ! -d "$BSP_CORE" ]]; then
