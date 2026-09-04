@@ -45,7 +45,7 @@ function _setDefaults {
     readonly OPTCLOCK_LIST
 
     declare -g -A OPTXSERIAL_LIST
-    OPTXSERIAL_LIST=([usb]=usb [hw]=generic [none]=none [both]=usbhwserial [two]=two)
+    OPTXSERIAL_LIST=([usb]=usb [hw]=generic [none]=none [both]=usbhwserial [two]=two [rs485]=rs485)
     readonly OPTXSERIAL_LIST
 
     declare -g -A MCCI_ARDUINO_BOARD_LIST
@@ -60,6 +60,7 @@ function _setDefaults {
         [4917]=mcci:stm32:mcci_model_4917
         [4931]=mcci:stm32:mcci_model_4931
         [4933]=mcci:stm32:mcci_model_4933
+        [5220]=mcci:stm32:mcci_catena_5220
         [5230]=mcci:stm32:mcci_catena_5230
         )
     readonly MCCI_ARDUINO_BOARD_LIST
@@ -76,6 +77,7 @@ function _setDefaults {
         [4917]=4801
         [4931]=4801
         [4933]=4801
+        [5220]=4801
         [5230]=5230
     )
     readonly MCCI_ARDUINO_BOOTLOADER_LIST
@@ -373,7 +375,7 @@ function _makeOutputDir {
 function _setBspVars {
     BSP_MCCI=$HOME/.arduino15/packages/mcci
     BSP_CORE=$BSP_MCCI/hardware/stm32/
-    LOCAL_BSP_CORE="$(realpath extra/MCCI_Arduino_Core_STM32)"
+    LOCAL_BSP_CORE="$(realpath extra/Arduino_Core_STM32)"
 
     # set up links to IDE
     if [[ ! -d "$BSP_CORE" ]]; then
