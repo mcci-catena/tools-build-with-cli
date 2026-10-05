@@ -2,6 +2,11 @@
 
 [![GitHub release](https://img.shields.io/github/release/mcci-catena/tools-build-with-cli.svg)](https://github.com/mcci-catena/tools-build-with-cli/releases/latest) [![GitHub commits](https://img.shields.io/github/commits-since/mcci-catena/tools-build-with-cli/latest.svg)](https://github.com/mcci-catena/tools-build-with-cli/compare/v2.0.1...main)
 
+## Requirements
+
+- [`arduino-cli`](https://arduino.github.io/arduino-cli/latest/installation/), with the MCCI STM32 BSP installed.
+- [`uv`](https://docs.astral.sh/uv/getting-started/installation/), used to run `dfuse-pack.py` with IntelHex without installing packages into the system Python.
+
 ## Input from calling script
 
 ### `_setProject`
