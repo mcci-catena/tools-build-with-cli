@@ -418,6 +418,9 @@ function _checkPreconditions {
     fi
 
     which arduino-cli > /dev/null || _fatal "please install arduino-cli"
+    # uv runs dfuse-pack.py with IntelHex without touching the system Python (PEP 668)
+    which uv > /dev/null || _fatal "uv not found; it is needed to make the packed DFU image." \
+        "Install it with 'curl -LsSf https://astral.sh/uv/install.sh | sh' or see https://docs.astral.sh/uv/getting-started/installation/"
 }
 
 function _cleanup_trap {
@@ -566,8 +569,7 @@ function _combineImages {
 
     # make a packed DFU variant
     _verbose "Make a packed DFU variant"
-    python3 -m pip --disable-pip-version-check -q install IntelHex
-    python3 extra/dfu-util/dfuse-pack.py -i "$OUTPUT"/"${BOOTLOADER_NAME}".hex -i "$OUTPUT"/"${ARDUINO_SOURCE_BASE}".ino.hex -D 0x040e:0x00a1 "$OUTPUT"/"${ARDUINO_SOURCE_BASE}"-bootloader.dfu
+    uv run --quiet --no-project --with IntelHex python3 extra/dfu-util/dfuse-pack.py -i "$OUTPUT"/"${BOOTLOADER_NAME}".hex -i "$OUTPUT"/"${ARDUINO_SOURCE_BASE}".ino.hex -D 0x040e:0x00a1 "$OUTPUT"/"${ARDUINO_SOURCE_BASE}"-bootloader.dfu
 }
 
 # rename everything
