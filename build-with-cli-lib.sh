@@ -504,6 +504,13 @@ function _setupBsp {
         echo "Toolchain not found: $BSP_CROSS_COMPILE"
         exit 1
     fi
+
+    # make can't handle spaces in CROSS_COMPILE (the Windows BSP uses "14.3 rel1"),
+    # so use the 8.3 short name when running under MSYS/Git Bash.
+    if [[ "$BSP_CROSS_COMPILE" == *" "* ]] && type cygpath > /dev/null 2>&1; then
+        BSP_CROSS_COMPILE="$(cygpath -m "$(cygpath -d "$(dirname "$BSP_CROSS_COMPILE")")")/$(basename "$BSP_CROSS_COMPILE")"
+        _verbose "toolchain path has spaces; using short path:" "$BSP_CROSS_COMPILE"
+    fi
 }
 
 # set up private key
