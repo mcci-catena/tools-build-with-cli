@@ -45,7 +45,7 @@ function _setDefaults {
     readonly OPTCLOCK_LIST
 
     declare -g -A OPTXSERIAL_LIST
-    OPTXSERIAL_LIST=([usb]=usb [hw]=generic [none]=none [both]=usbhwserial [two]=two)
+    OPTXSERIAL_LIST=([usb]=usb [hw]=generic [none]=none [both]=usbhwserial [two]=two [rs485]=rs485)
     readonly OPTXSERIAL_LIST
 
     declare -g -A MCCI_ARDUINO_BOARD_LIST
@@ -60,6 +60,8 @@ function _setDefaults {
         [4917]=mcci:stm32:mcci_model_4917
         [4931]=mcci:stm32:mcci_model_4931
         [4933]=mcci:stm32:mcci_model_4933
+        [5220]=mcci:stm32:mcci_catena_5220
+        [5230]=mcci:stm32:mcci_catena_5230
         )
     readonly MCCI_ARDUINO_BOARD_LIST
 
@@ -75,6 +77,8 @@ function _setDefaults {
         [4917]=4801
         [4931]=4801
         [4933]=4801
+        [5220]=4801
+        [5230]=5230
     )
     readonly MCCI_ARDUINO_BOOTLOADER_LIST
 }
@@ -532,18 +536,27 @@ function _buildBootloader {
     make -C extra/bootloader/tools/mccibootloader_image all
 
     _verbose "Building and signing bootloader"
-    MCCIBOOTLOADER_IMAGE_FLAGS_ARG=
+    MAKE_ARGS=(
+        -C extra/bootloader
+        -f Makefile-stm32l0.mk
+        T_BUILDTREE="$OUTPUT_BOOTLOADER"
+        MCCI_BOOTLOADER_KEYFILE="$KEYFILE"
+    )
     if [[ $OPTVERBOSE -ne 0 ]]; then
-        MCCIBOOTLOADER_IMAGE_FLAGS_ARG="MCCIBOOTLOADER_IMAGE_FLAGS=-v"
+        MAKE_ARGS+=(MCCIBOOTLOADER_IMAGE_FLAGS=-v)
     fi
+
     if [[ $OPTCLEAN -ne 0 ]]; then
-        CROSS_COMPILE="${BSP_CROSS_COMPILE}" make -C extra/bootloader clean T_BUILDTREE="$OUTPUT_BOOTLOADER" MCCI_BOOTLOADER_KEYFILE="$KEYFILE" ${MCCIBOOTLOADER_IMAGE_FLAGS_ARG}
+        CROSS_COMPILE="${BSP_CROSS_COMPILE}" make "${MAKE_ARGS[@]}" clean
     fi
-    CROSS_COMPILE="${BSP_CROSS_COMPILE}" make -C extra/bootloader all T_BUILDTREE="$OUTPUT_BOOTLOADER" MCCI_BOOTLOADER_KEYFILE="$KEYFILE" ${MCCIBOOTLOADER_IMAGE_FLAGS_ARG}
+    CROSS_COMPILE="${BSP_CROSS_COMPILE}" make "${MAKE_ARGS[@]}" \
+        "$OUTPUT_BOOTLOADER/stm32l0-arm-none-eabi/release/${BOOTLOADER_NAME}.elf" \
+        "$OUTPUT_BOOTLOADER/stm32l0-arm-none-eabi/release/${BOOTLOADER_NAME}.bin" \
+        "$OUTPUT_BOOTLOADER/stm32l0-arm-none-eabi/release/${BOOTLOADER_NAME}.hex"
 
     # copy bootloader images to output dir
     _verbose "Save bootloader"
-    cp -p "$OUTPUT_BOOTLOADER"/arm-none-eabi/release/"${BOOTLOADER_NAME}".* "$OUTPUT"
+    cp -p "$OUTPUT_BOOTLOADER"/stm32l0-arm-none-eabi/release/"${BOOTLOADER_NAME}".* "$OUTPUT"
 }
 
 # combine hex images to simplify download
