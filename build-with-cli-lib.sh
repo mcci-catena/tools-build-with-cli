@@ -372,8 +372,47 @@ function _makeOutputDir {
     fi
 }
 
+# Print the directory where arduino-cli keeps its data (the one holding
+# packages/): ~/.arduino15 on Linux, ~/Library/Arduino15 on macOS,
+# %LOCALAPPDATA%\Arduino15 on Windows.
+#
+# "arduino-cli config get" only exists in newer versions; older ones (such as
+# 0.29) print their usage text instead of an answer. So take each answer only
+# if it names a directory that exists, trying in order: the environment,
+# "config get", "config dump" (old and new versions), then the Linux default.
+function _getArduinoDataDir {
+    local candidate
+    local -a candidates=()
+
+    [[ -n "$ARDUINO_DIRECTORIES_DATA" ]] && candidates+=("$ARDUINO_DIRECTORIES_DATA")
+    candidates+=("$(arduino-cli config get directories.data 2>/dev/null | head -n 1)")
+    candidates+=("$(arduino-cli config dump 2>/dev/null | sed -n 's/^[[:space:]]*data:[[:space:]]*//p' | head -n 1)")
+    candidates+=("$HOME/.arduino15")
+
+    for candidate in "${candidates[@]}"; do
+        candidate="${candidate%$'\r'}"
+        candidate="${candidate//\"/}"
+        candidate="${candidate//\'/}"
+        [[ -z "$candidate" ]] && continue
+        if type cygpath > /dev/null 2>&1; then
+            # Windows path (C:\...) to the form the shell uses (/c/...)
+            candidate="$(cygpath -u "$candidate" 2>/dev/null)" || continue
+        fi
+        if [[ -d "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    # nothing exists: give the traditional location, so the caller's
+    # "Not installed" message names a sensible path
+    printf '%s\n' "$HOME/.arduino15"
+}
+
 function _setBspVars {
-    BSP_MCCI=$HOME/.arduino15/packages/mcci
+    local ARDUINO_DATA
+    ARDUINO_DATA="$(_getArduinoDataDir)"
+    BSP_MCCI=$ARDUINO_DATA/packages/mcci
     BSP_CORE=$BSP_MCCI/hardware/stm32/
     LOCAL_BSP_CORE="$(realpath extra/Arduino_Core_STM32)"
 
