@@ -623,7 +623,7 @@ function _combineImages {
 
     # make a packed DFU variant
     _verbose "Make a packed DFU variant"
-    uv run --quiet --no-project --with IntelHex python3 extra/dfu-util/dfuse-pack.py -i "$OUTPUT"/"${BOOTLOADER_NAME}".hex -i "$OUTPUT"/"${ARDUINO_SOURCE_BASE}".ino.hex -D 0x040e:0x00a1 "$OUTPUT"/"${ARDUINO_SOURCE_BASE}"-bootloader.dfu
+    uv run --quiet --no-project --with IntelHex extra/dfu-util/dfuse-pack.py -i "$OUTPUT"/"${BOOTLOADER_NAME}".hex -i "$OUTPUT"/"${ARDUINO_SOURCE_BASE}".ino.hex -D 0x040e:0x00a1 "$OUTPUT"/"${ARDUINO_SOURCE_BASE}"-bootloader.dfu
 }
 
 # rename everything
