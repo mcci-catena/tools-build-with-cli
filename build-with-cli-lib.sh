@@ -581,12 +581,20 @@ function _buildBootloader {
     fi
     make -C extra/bootloader/tools/mccibootloader_image all
 
+    # Tell the bootloader make where the tool we just built lives. Newer GNU
+    # make (4.4+) passes T_BUILDTREE into the $(shell make ...) that the
+    # bootloader makefile uses to locate the tool, so it would look under
+    # $OUTPUT_BOOTLOADER instead of the tool's own build directory.
+    IMAGE_TOOL_DIR="$(make -C extra/bootloader/tools/mccibootloader_image --no-print-directory print-target-path)"
+    IMAGE_TOOL_SUFFIX="$(make -C extra/bootloader/tools/mccibootloader_image --no-print-directory print-target-suffix)"
+
     _verbose "Building and signing bootloader"
     MAKE_ARGS=(
         -C extra/bootloader
         -f Makefile-stm32l0.mk
         T_BUILDTREE="$OUTPUT_BOOTLOADER"
         MCCI_BOOTLOADER_KEYFILE="$KEYFILE"
+        MCCIBOOTLOADER_IMAGE="${IMAGE_TOOL_DIR}/mccibootloader_image${IMAGE_TOOL_SUFFIX}"
     )
     if [[ $OPTVERBOSE -ne 0 ]]; then
         MAKE_ARGS+=(MCCIBOOTLOADER_IMAGE_FLAGS=-v)
