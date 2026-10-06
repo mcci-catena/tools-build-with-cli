@@ -77,7 +77,7 @@ function _setDefaults {
         [4917]=4801
         [4931]=4801
         [4933]=4801
-        [5220]=4801
+        [5220]=5220
         [5230]=5230
     )
     readonly MCCI_ARDUINO_BOOTLOADER_LIST
