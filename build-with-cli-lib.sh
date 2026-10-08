@@ -273,6 +273,10 @@ function _parseOptions {
             OPTARDUINO_SOURCE="${opt#--sketch=}"
             OPTSKETCH=1
             ;;
+        "--outputname="* )
+            OPTOUTPUTNAME="${opt#--outputname=}"
+            [[ -n "$OPTOUTPUTNAME" ]] || _fatal "--outputname needs a name"
+            ;;
         "--debug" )
             OPTDEBUG=1
             ;;
