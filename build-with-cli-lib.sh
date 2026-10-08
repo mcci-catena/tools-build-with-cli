@@ -77,7 +77,7 @@ function _setDefaults {
         [4917]=4801
         [4931]=4801
         [4933]=4801
-        [5220]=4801
+        [5220]=5220
         [5230]=5230
     )
     readonly MCCI_ARDUINO_BOOTLOADER_LIST
@@ -372,8 +372,47 @@ function _makeOutputDir {
     fi
 }
 
+# Print the directory where arduino-cli keeps its data (the one holding
+# packages/): ~/.arduino15 on Linux, ~/Library/Arduino15 on macOS,
+# %LOCALAPPDATA%\Arduino15 on Windows.
+#
+# "arduino-cli config get" only exists in newer versions; older ones (such as
+# 0.29) print their usage text instead of an answer. So take each answer only
+# if it names a directory that exists, trying in order: the environment,
+# "config get", "config dump" (old and new versions), then the Linux default.
+function _getArduinoDataDir {
+    local candidate
+    local -a candidates=()
+
+    [[ -n "$ARDUINO_DIRECTORIES_DATA" ]] && candidates+=("$ARDUINO_DIRECTORIES_DATA")
+    candidates+=("$(arduino-cli config get directories.data 2>/dev/null | head -n 1)")
+    candidates+=("$(arduino-cli config dump 2>/dev/null | sed -n 's/^[[:space:]]*data:[[:space:]]*//p' | head -n 1)")
+    candidates+=("$HOME/.arduino15")
+
+    for candidate in "${candidates[@]}"; do
+        candidate="${candidate%$'\r'}"
+        candidate="${candidate//\"/}"
+        candidate="${candidate//\'/}"
+        [[ -z "$candidate" ]] && continue
+        if type cygpath > /dev/null 2>&1; then
+            # Windows path (C:\...) to the form the shell uses (/c/...)
+            candidate="$(cygpath -u "$candidate" 2>/dev/null)" || continue
+        fi
+        if [[ -d "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    # nothing exists: give the traditional location, so the caller's
+    # "Not installed" message names a sensible path
+    printf '%s\n' "$HOME/.arduino15"
+}
+
 function _setBspVars {
-    BSP_MCCI=$HOME/.arduino15/packages/mcci
+    local ARDUINO_DATA
+    ARDUINO_DATA="$(_getArduinoDataDir)"
+    BSP_MCCI=$ARDUINO_DATA/packages/mcci
     BSP_CORE=$BSP_MCCI/hardware/stm32/
     LOCAL_BSP_CORE="$(realpath extra/Arduino_Core_STM32)"
 
@@ -465,6 +504,13 @@ function _setupBsp {
         echo "Toolchain not found: $BSP_CROSS_COMPILE"
         exit 1
     fi
+
+    # make can't handle spaces in CROSS_COMPILE (the Windows BSP uses "14.3 rel1"),
+    # so use the 8.3 short name when running under MSYS/Git Bash.
+    if [[ "$BSP_CROSS_COMPILE" == *" "* ]] && type cygpath > /dev/null 2>&1; then
+        BSP_CROSS_COMPILE="$(cygpath -m "$(cygpath -d "$(dirname "$BSP_CROSS_COMPILE")")")/$(basename "$BSP_CROSS_COMPILE")"
+        _verbose "toolchain path has spaces; using short path:" "$BSP_CROSS_COMPILE"
+    fi
 }
 
 # set up private key
@@ -535,12 +581,20 @@ function _buildBootloader {
     fi
     make -C extra/bootloader/tools/mccibootloader_image all
 
+    # Tell the bootloader make where the tool we just built lives. Newer GNU
+    # make (4.4+) passes T_BUILDTREE into the $(shell make ...) that the
+    # bootloader makefile uses to locate the tool, so it would look under
+    # $OUTPUT_BOOTLOADER instead of the tool's own build directory.
+    IMAGE_TOOL_DIR="$(make -C extra/bootloader/tools/mccibootloader_image --no-print-directory print-target-path)"
+    IMAGE_TOOL_SUFFIX="$(make -C extra/bootloader/tools/mccibootloader_image --no-print-directory print-target-suffix)"
+
     _verbose "Building and signing bootloader"
     MAKE_ARGS=(
         -C extra/bootloader
         -f Makefile-stm32l0.mk
         T_BUILDTREE="$OUTPUT_BOOTLOADER"
         MCCI_BOOTLOADER_KEYFILE="$KEYFILE"
+        MCCIBOOTLOADER_IMAGE="${IMAGE_TOOL_DIR}/mccibootloader_image${IMAGE_TOOL_SUFFIX}"
     )
     if [[ $OPTVERBOSE -ne 0 ]]; then
         MAKE_ARGS+=(MCCIBOOTLOADER_IMAGE_FLAGS=-v)
@@ -569,7 +623,7 @@ function _combineImages {
 
     # make a packed DFU variant
     _verbose "Make a packed DFU variant"
-    uv run --quiet --no-project --with IntelHex python3 extra/dfu-util/dfuse-pack.py -i "$OUTPUT"/"${BOOTLOADER_NAME}".hex -i "$OUTPUT"/"${ARDUINO_SOURCE_BASE}".ino.hex -D 0x040e:0x00a1 "$OUTPUT"/"${ARDUINO_SOURCE_BASE}"-bootloader.dfu
+    uv run --quiet --no-project --with IntelHex extra/dfu-util/dfuse-pack.py -i "$OUTPUT"/"${BOOTLOADER_NAME}".hex -i "$OUTPUT"/"${ARDUINO_SOURCE_BASE}".ino.hex -D 0x040e:0x00a1 "$OUTPUT"/"${ARDUINO_SOURCE_BASE}"-bootloader.dfu
 }
 
 # rename everything
