@@ -601,7 +601,7 @@ function _buildBootloader {
         MCCIBOOTLOADER_IMAGE="${IMAGE_TOOL_DIR}/mccibootloader_image${IMAGE_TOOL_SUFFIX}"
     )
     if [[ $OPTVERBOSE -ne 0 ]]; then
-        MAKE_ARGS+=(MCCIBOOTLOADER_IMAGE_FLAGS=-v)
+        MAKE_ARGS+=(MCCIBOOTLOADER_IMAGE_FLAGS_USER=-v)
     fi
 
     if [[ $OPTCLEAN -ne 0 ]]; then
