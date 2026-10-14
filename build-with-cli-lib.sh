@@ -468,15 +468,16 @@ function _checkPreconditions {
 
 function _cleanup_trap {
     [[ -f "$PRIVATE_KEY_UNLOCKED" ]] && shred -u "$PRIVATE_KEY_UNLOCKED"
-    if [[ -h "$BSP_CORE"/2.8.0 ]]; then
+    if [[ -n "$ACTIVE_BSP_LINK" ]] && [[ -h "$ACTIVE_BSP_LINK" ]]; then
         _verbose "remove symbolic link"
-        rm "$BSP_CORE"/2.8.0
+        rm "$ACTIVE_BSP_LINK"
     fi
     if [[ -n "$SAVE_BSP_CORE" ]] && [[ -d "$SAVE_BSP_CORE" ]]; then
         _verbose "restore BSP"
         mv "$SAVE_BSP_CORE" "$BSP_CORE"/"$SAVE_BSP_VER"
     fi
     rm -f "$LOCAL_BSP_CORE"/platform.local.txt
+    _releaseBspLock
 }
 
 function _errcleanup_trap {
@@ -484,22 +485,61 @@ function _errcleanup_trap {
     rm -f "$OUTPUT"/*.elf "$OUTPUT"/*.bin "$OUTPUT"/*.hex "$OUTPUT"/*.dfu
 }
 
+function _acquireBspLock {
+    BSP_LOCK_DIR="$BSP_MCCI/.tools-build-with-cli.lock"
+    if ! mkdir "$BSP_LOCK_DIR" 2>/dev/null; then
+        _fatal "Another tools-build-with-cli process is using $BSP_MCCI"
+    fi
+    printf '%s\n' "$$" > "$BSP_LOCK_DIR/pid"
+}
+
+function _releaseBspLock {
+    if [[ -n "$BSP_LOCK_DIR" ]] && [[ -d "$BSP_LOCK_DIR" ]] &&
+        [[ "$(cat "$BSP_LOCK_DIR/pid" 2>/dev/null)" == "$$" ]]; then
+        rm -f "$BSP_LOCK_DIR/pid"
+        rmdir "$BSP_LOCK_DIR"
+    fi
+}
+
 # set up BSP
 function _setupBsp {
+    local bsp_dir entries saved_entries nullglob_was_set
     _verbose "setup BSP for build"
-    OLD_BSP_CORE="$(echo "$BSP_CORE"/*)"
+    _acquireBspLock
+
+    bsp_dir="${BSP_CORE%/}"
+    nullglob_was_set=0
+    shopt -q nullglob && nullglob_was_set=1
+    shopt -s nullglob
+    entries=("$bsp_dir"/*)
+    [[ $nullglob_was_set -eq 1 ]] || shopt -u nullglob
+
+    if [[ ${#entries[@]} -eq 0 ]]; then
+        shopt -s nullglob
+        saved_entries=("$(dirname "$bsp_dir")"/stm32-*)
+        [[ $nullglob_was_set -eq 1 ]] || shopt -u nullglob
+        if [[ ${#saved_entries[@]} -gt 0 ]]; then
+            _fatal "No installed BSP version found under $bsp_dir; restore one of: ${saved_entries[*]}"
+        fi
+        _fatal "No installed BSP version found under $bsp_dir"
+    elif [[ ${#entries[@]} -gt 1 ]]; then
+        _fatal "Multiple BSP versions found under $bsp_dir: ${entries[*]}"
+    fi
+
+    OLD_BSP_CORE="${entries[0]}"
     if [[ ! -h "$OLD_BSP_CORE" ]] && [[ -d "$OLD_BSP_CORE" ]]; then
         _verbose "save and overlay BSP"
         SAVE_BSP_VER="$(basename "$OLD_BSP_CORE")"
         SAVE_BSP_CORE="$(dirname "$BSP_CORE")"/stm32-"$SAVE_BSP_VER"
         mv "$OLD_BSP_CORE" "$SAVE_BSP_CORE"
-        ln -sf "$LOCAL_BSP_CORE" "$BSP_CORE"/2.8.0
+        ACTIVE_BSP_LINK="$bsp_dir/2.8.0"
+        ln -sf "$LOCAL_BSP_CORE" "$ACTIVE_BSP_LINK"
     elif [[ -h "$OLD_BSP_CORE" ]] ; then
         _verbose "replace existing BSP link"
+        ACTIVE_BSP_LINK="$OLD_BSP_CORE"
         ln -sf "$LOCAL_BSP_CORE" "$OLD_BSP_CORE"
     else
-        _verbose "link BSP core"
-        ln -s "$LOCAL_BSP_CORE" "$OLD_BSP_CORE"
+        _fatal "BSP entry is neither a directory nor a symbolic link: $OLD_BSP_CORE"
     fi
 
     # check tools
