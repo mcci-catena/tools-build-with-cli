@@ -579,11 +579,24 @@ function _setupBsp {
         SAVE_BSP_CORE="$(dirname "$BSP_CORE")"/stm32-"$SAVE_BSP_VER"
         mv "$OLD_BSP_CORE" "$SAVE_BSP_CORE"
         ACTIVE_BSP_LINK="$bsp_dir/2.8.0"
-        ln -sf "$LOCAL_BSP_CORE" "$ACTIVE_BSP_LINK"
+        ln -sfn "$LOCAL_BSP_CORE" "$ACTIVE_BSP_LINK"
     elif [[ -h "$OLD_BSP_CORE" ]] ; then
+        # A link with a saved stm32-<ver> beside it is the layout left by a
+        # build that died before its cleanup ran. Take over the saved BSP,
+        # so this build's cleanup puts it back.
+        shopt -s nullglob
+        saved_entries=("$(dirname "$bsp_dir")"/stm32-*)
+        [[ $nullglob_was_set -eq 1 ]] || shopt -u nullglob
+        if [[ ${#saved_entries[@]} -gt 1 ]]; then
+            _fatal "BSP link $OLD_BSP_CORE found with several saved BSPs; restore one of: ${saved_entries[*]}"
+        elif [[ ${#saved_entries[@]} -eq 1 ]]; then
+            echo "$PNAME: $OLD_BSP_CORE was left by an earlier build; $(basename "${saved_entries[0]}") will be restored afterwards" 1>&2
+            SAVE_BSP_CORE="${saved_entries[0]}"
+            SAVE_BSP_VER="${SAVE_BSP_CORE##*/stm32-}"
+        fi
         _verbose "replace existing BSP link"
         ACTIVE_BSP_LINK="$OLD_BSP_CORE"
-        ln -sf "$LOCAL_BSP_CORE" "$OLD_BSP_CORE"
+        ln -sfn "$LOCAL_BSP_CORE" "$OLD_BSP_CORE"
     else
         _fatal "BSP entry is neither a directory nor a symbolic link: $OLD_BSP_CORE"
     fi

@@ -101,4 +101,29 @@ fi
 grep -qF "$lock" "$invalid.err" || fail "invalid-lock error did not name the lock directory"
 [[ -d "$invalid/packages/mcci/hardware/stm32/2.7.0" ]] || fail "invalid-lock layout was changed"
 
+# a link and a saved BSP left by a build that died: the saved BSP is taken
+# over and restored, and the link is replaced, not followed
+dead="$TEST_ROOT/dead"
+mkdir -p "$dead/packages/mcci/hardware/stm32-2.7.0" "$dead/packages/mcci/hardware/stm32" "$dead/other-core"
+ln -s "$dead/other-core" "$dead/packages/mcci/hardware/stm32/2.8.0"
+run_setup "$dead" 2>"$dead.err" || fail "stale link with a saved BSP failed: $(cat "$dead.err")"
+grep -q "stm32-2.7.0 will be restored" "$dead.err" || fail "takeover of the saved BSP was not reported"
+[[ -d "$dead/packages/mcci/hardware/stm32/2.7.0" ]] || fail "saved BSP was not restored"
+[[ ! -e "$dead/packages/mcci/hardware/stm32-2.7.0" ]] || fail "saved BSP was left beside stm32"
+[[ ! -h "$dead/packages/mcci/hardware/stm32/2.8.0" ]] || fail "stale link was left"
+[[ -z "$(ls -A "$dead/other-core")" ]] || fail "ln followed the stale link into its target"
+[[ -z "$(ls -A "$dead/local-core")" ]] || fail "ln created a link inside the local core"
+[[ ! -d "$dead/packages/mcci/.tools-build-with-cli.lock" ]] || fail "stale-link build left its lock"
+
+# a link with several saved BSPs stops the build and names them
+several="$TEST_ROOT/several"
+mkdir -p "$several/packages/mcci/hardware/stm32-2.6.0" "$several/packages/mcci/hardware/stm32-2.7.0" "$several/packages/mcci/hardware/stm32" "$several/other-core"
+ln -s "$several/other-core" "$several/packages/mcci/hardware/stm32/2.8.0"
+if run_setup "$several" 2>"$several.err"; then
+    fail "stale link with several saved BSPs succeeded"
+fi
+grep -q "stm32-2.6.0" "$several.err" && grep -q "stm32-2.7.0" "$several.err" || fail "several-saved error did not name the saved BSPs"
+[[ -h "$several/packages/mcci/hardware/stm32/2.8.0" ]] || fail "several-saved layout was changed"
+[[ -d "$several/packages/mcci/hardware/stm32-2.6.0" ]] && [[ -d "$several/packages/mcci/hardware/stm32-2.7.0" ]] || fail "several-saved layout lost a saved BSP"
+
 echo "BSP layout tests passed"
