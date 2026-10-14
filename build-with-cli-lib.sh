@@ -485,10 +485,56 @@ function _errcleanup_trap {
     rm -f "$OUTPUT"/*.elf "$OUTPUT"/*.bin "$OUTPUT"/*.hex "$OUTPUT"/*.dfu
 }
 
+# _bspLockPidAlive pid: succeed if pid names a running process. kill -0 also
+# fails when the process exists but belongs to another user, so ps -p is the
+# fallback for that case.
+function _bspLockPidAlive {
+    local pid="$1"
+    [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+    kill -0 "$pid" 2>/dev/null && return 0
+    ps -p "$pid" > /dev/null 2>&1
+}
+
+# _takeOverStaleBspLock pid: move aside a lock left by the dead process pid.
+# The rename is atomic, so only one waiting build can take it over; the pid is
+# checked again afterwards in case a live build re-created the lock meanwhile.
+function _takeOverStaleBspLock {
+    local stale_pid="$1" stale_dir moved_pid
+    stale_dir="$BSP_LOCK_DIR.stale.$$"
+    mv "$BSP_LOCK_DIR" "$stale_dir" 2>/dev/null || return 1
+    moved_pid="$(cat "$stale_dir/pid" 2>/dev/null || true)"
+    if [[ "$moved_pid" != "$stale_pid" ]]; then
+        # not the lock we judged stale; put it back
+        mv "$stale_dir" "$BSP_LOCK_DIR" 2>/dev/null ||
+            _fatal "Lost track of the BSP lock while taking it over; check $BSP_LOCK_DIR and $stale_dir"
+        return 1
+    fi
+    rm -rf "$stale_dir"
+}
+
 function _acquireBspLock {
+    local holder
     BSP_LOCK_DIR="$BSP_MCCI/.tools-build-with-cli.lock"
     if ! mkdir "$BSP_LOCK_DIR" 2>/dev/null; then
-        _fatal "Another tools-build-with-cli process is using $BSP_MCCI"
+        holder="$(cat "$BSP_LOCK_DIR/pid" 2>/dev/null || true)"
+        if [[ -z "$holder" ]]; then
+            # the holder may have just made the directory; give it time to write its PID
+            sleep 1
+            holder="$(cat "$BSP_LOCK_DIR/pid" 2>/dev/null || true)"
+        fi
+        if [[ ! "$holder" =~ ^[0-9]+$ ]]; then
+            _fatal "Another tools-build-with-cli process is using $BSP_MCCI" \
+                "(lock $BSP_LOCK_DIR has no valid PID; if no build is running, remove it by hand)"
+        elif _bspLockPidAlive "$holder"; then
+            _fatal "Another tools-build-with-cli process (PID $holder) is using $BSP_MCCI" \
+                "(lock: $BSP_LOCK_DIR)"
+        fi
+        _verbose "BSP lock $BSP_LOCK_DIR is stale (PID $holder is not running); taking it over"
+        if ! _takeOverStaleBspLock "$holder" || ! mkdir "$BSP_LOCK_DIR" 2>/dev/null; then
+            holder="$(cat "$BSP_LOCK_DIR/pid" 2>/dev/null || true)"
+            _fatal "Another tools-build-with-cli process${holder:+ (PID $holder)} is using $BSP_MCCI" \
+                "(lock: $BSP_LOCK_DIR)"
+        fi
     fi
     printf '%s\n' "$$" > "$BSP_LOCK_DIR/pid"
 }
