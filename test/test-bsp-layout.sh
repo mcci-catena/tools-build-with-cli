@@ -29,6 +29,7 @@ run_setup() {
         BSP_LOCK_DIR=""
         trap '_cleanup_trap' EXIT
         _setupBsp
+        ls -A "$BSP_CORE" > "$data/during-setup"
     )
 }
 
@@ -53,10 +54,29 @@ grep -q "Multiple BSP versions" "$multiple.err" || fail "multiple layout error w
 
 normal="$TEST_ROOT/normal"
 mkdir -p "$normal/packages/mcci/hardware/stm32/2.7.0"
-run_setup "$normal"
+run_setup "$normal" 2>"$normal.err" || fail "normal setup failed: $(cat "$normal.err")"
 [[ -d "$normal/packages/mcci/hardware/stm32/2.7.0" ]] || fail "cleanup did not restore the BSP"
 [[ ! -h "$normal/packages/mcci/hardware/stm32/2.8.0" ]] || fail "cleanup left the overlay link"
 [[ ! -d "$normal/packages/mcci/.tools-build-with-cli.lock" ]] || fail "cleanup left its lock"
+
+[[ "$(cat "$normal/during-setup")" == "2.8.0" ]] || fail "link without a platform.txt version was not named 2.8.0"
+
+# the link takes its name from the local BSP's platform.txt version
+named="$TEST_ROOT/named"
+mkdir -p "$named/packages/mcci/hardware/stm32/3.0.5" "$named/local-core"
+printf 'name=MCCI Catena STM32 Boards\r\nversion=3.3.1-pre2\r\n' > "$named/local-core/platform.txt"
+run_setup "$named" 2>"$named.err" || fail "named link setup failed: $(cat "$named.err")"
+[[ "$(cat "$named/during-setup")" == "3.3.1-pre2" ]] || fail "link was not named for the platform.txt version: $(cat "$named/during-setup")"
+[[ -d "$named/packages/mcci/hardware/stm32/3.0.5" ]] || fail "named-link build did not restore the BSP"
+[[ ! -e "$named/packages/mcci/hardware/stm32/3.3.1-pre2" ]] || fail "named-link build left its link"
+
+# an unusable version falls back to 2.8.0, with a warning
+badver="$TEST_ROOT/badver"
+mkdir -p "$badver/packages/mcci/hardware/stm32/3.0.5" "$badver/local-core"
+printf 'version=latest\n' > "$badver/local-core/platform.txt"
+run_setup "$badver" 2>"$badver.err" || fail "bad-version setup failed: $(cat "$badver.err")"
+[[ "$(cat "$badver/during-setup")" == "2.8.0" ]] || fail "unusable version did not fall back to 2.8.0"
+grep -q "naming the BSP link 2.8.0" "$badver.err" || fail "fallback to 2.8.0 was not reported"
 
 # a lock held by a running process stops the build and names the PID
 sleep 60 &
@@ -114,6 +134,15 @@ grep -q "stm32-2.7.0 will be restored" "$dead.err" || fail "takeover of the save
 [[ -z "$(ls -A "$dead/other-core")" ]] || fail "ln followed the stale link into its target"
 [[ -z "$(ls -A "$dead/local-core")" ]] || fail "ln created a link inside the local core"
 [[ ! -d "$dead/packages/mcci/.tools-build-with-cli.lock" ]] || fail "stale-link build left its lock"
+
+# a stale link under an old name is replaced by one named for the version
+renamed="$TEST_ROOT/renamed"
+mkdir -p "$renamed/packages/mcci/hardware/stm32-3.0.5" "$renamed/packages/mcci/hardware/stm32" "$renamed/other-core" "$renamed/local-core"
+printf 'version=3.3.1-pre2\n' > "$renamed/local-core/platform.txt"
+ln -s "$renamed/other-core" "$renamed/packages/mcci/hardware/stm32/2.8.0"
+run_setup "$renamed" 2>"$renamed.err" || fail "stale link rename failed: $(cat "$renamed.err")"
+[[ "$(cat "$renamed/during-setup")" == "3.3.1-pre2" ]] || fail "stale link was not replaced by a named link: $(cat "$renamed/during-setup")"
+[[ "$(ls -A "$renamed/packages/mcci/hardware/stm32")" == "3.0.5" ]] || fail "stale-link rename did not leave the saved BSP alone in stm32"
 
 # a link with several saved BSPs stops the build and names them
 several="$TEST_ROOT/several"
