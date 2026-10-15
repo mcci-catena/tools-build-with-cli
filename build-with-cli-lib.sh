@@ -547,9 +547,24 @@ function _releaseBspLock {
     fi
 }
 
+# The name for the link to the local BSP: arduino-cli reports the
+# platform version from the directory name, so use the local BSP's
+# platform.txt version. If it is missing or not a semantic version,
+# warn and use 2.8.0, the name used before #30.
+function _getLocalBspLinkName {
+    local version
+    version="$(sed -n -e 's/^version=//p' "$LOCAL_BSP_CORE/platform.txt" 2>/dev/null | tr -d '\r' | head -n 1)"
+    if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+        printf '%s\n' "$version"
+    else
+        echo "$PNAME: no usable version= line in $LOCAL_BSP_CORE/platform.txt; naming the BSP link 2.8.0" 1>&2
+        printf '2.8.0\n'
+    fi
+}
+
 # set up BSP
 function _setupBsp {
-    local bsp_dir entries saved_entries nullglob_was_set
+    local bsp_dir entries saved_entries nullglob_was_set link_name
     _verbose "setup BSP for build"
     _acquireBspLock
 
@@ -573,12 +588,13 @@ function _setupBsp {
     fi
 
     OLD_BSP_CORE="${entries[0]}"
+    link_name="$(_getLocalBspLinkName)"
     if [[ ! -h "$OLD_BSP_CORE" ]] && [[ -d "$OLD_BSP_CORE" ]]; then
         _verbose "save and overlay BSP"
         SAVE_BSP_VER="$(basename "$OLD_BSP_CORE")"
         SAVE_BSP_CORE="$(dirname "$BSP_CORE")"/stm32-"$SAVE_BSP_VER"
         mv "$OLD_BSP_CORE" "$SAVE_BSP_CORE"
-        ACTIVE_BSP_LINK="$bsp_dir/2.8.0"
+        ACTIVE_BSP_LINK="$bsp_dir/$link_name"
         ln -sfn "$LOCAL_BSP_CORE" "$ACTIVE_BSP_LINK"
     elif [[ -h "$OLD_BSP_CORE" ]] ; then
         # A link with a saved stm32-<ver> beside it is the layout left by a
@@ -595,8 +611,9 @@ function _setupBsp {
             SAVE_BSP_VER="${SAVE_BSP_CORE##*/stm32-}"
         fi
         _verbose "replace existing BSP link"
-        ACTIVE_BSP_LINK="$OLD_BSP_CORE"
-        ln -sfn "$LOCAL_BSP_CORE" "$OLD_BSP_CORE"
+        rm "$OLD_BSP_CORE"
+        ACTIVE_BSP_LINK="$bsp_dir/$link_name"
+        ln -sfn "$LOCAL_BSP_CORE" "$ACTIVE_BSP_LINK"
     else
         _fatal "BSP entry is neither a directory nor a symbolic link: $OLD_BSP_CORE"
     fi
